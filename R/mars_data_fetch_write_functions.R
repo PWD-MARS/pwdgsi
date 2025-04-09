@@ -445,7 +445,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
   baro_weights <- dplyr::filter(smp_loc, smp_id %in% baro_smp) %>%
     dplyr::mutate(lon_dist = lon_wgs84 - locus_loc$lon_wgs84,
                   lat_dist = lat_wgs84 - locus_loc$lat_wgs84,
-                  dist_total = sqrt(abs(lon_dist**2 - lat_dist**2))) %>%
+                  dist_total = sqrt(lon_dist**2 + lat_dist**2)) %>%
     dplyr::mutate(weight = 1/dist_total) %>% #inverse distance weight with power = 1
     dplyr::select(smp_id, weight) %>%
     dplyr::arrange(smp_id)
