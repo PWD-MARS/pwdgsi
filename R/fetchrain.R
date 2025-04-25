@@ -57,7 +57,8 @@ FetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, e
   # #To mitigate this, we will strip NA values from the new object
   # # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
   # rain_temp %<>% dplyr::filter(!is.na(dtime_est)) %>% dplyr::arrange(dtime_est)
-
+  
+  ##### This should be determined by the tz being added
   # #Our water level data is not corrected for daylight savings time. ie it doesn't spring forwards
   # #So we must shift back any datetimes within the DST window
   # #Thankfully, the dst() function returns TRUE if a dtime is within that zone
@@ -66,7 +67,7 @@ FetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, e
   # #   rain_temp$dtime_edt %<>% lubridate::force_tz("EST") #Assign new TZ without changing dates
   # #   rain_temp$dtime_edt[dst_index] <- rain_temp$dtime_edt[dst_index] - lubridate::hours(1)
   # # }
-  # 
+  ##### This does not appear to do what we think it see test_zeros.R
   # #Punctuate data with zeroes to prevent linear interpolation when plotting
   # #If the time between data points A and B is greater than 15 minutes (the normal timestep), we must insert a zero 15 minutes after A
   # #If it's greather than 30 minutes, we must insert a zero 15 minutes before B also
@@ -114,7 +115,7 @@ FetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, e
   #   }
   # }
   # zeroFills
-  # # 
+  #### Why not do this when we pull the data originally?
   # #Replace UIDs with SMP IDs
   # rainlocs <- odbc::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$loctable))
   # # finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
@@ -125,10 +126,10 @@ FetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, e
   #   dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
   #   dplyr::select(dtime_est, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
   #   dplyr::arrange(dtime_est)
-  # 
+  #### Do we ever have non-zero minutes?
   # #round date to nearest minute
   # finalseries$dtime_est %<>% lubridate::round_date("minute")
-
+  #### Currently not used
   #Rename dtime column if we are undoing daylight savings time
   # if(daylightsavings == FALSE){
   #   finalseries <- finalseries %>%
