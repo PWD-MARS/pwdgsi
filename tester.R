@@ -50,7 +50,7 @@ diffs <- test_sand |>
 
 
 # Change sandbox data to EDT to see if it matches production
-sand_edt <- test_sand |> with_tz(dtime_est, tz = "America/New_York")
+sand_edt <- test_sand |> mutate(dtime_est = force_tz(dtime_est, tz = "America/New_York"))
 
 # It matches :(
 diffs2 <- sand_edt|>
