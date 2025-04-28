@@ -1,19 +1,5 @@
 library(pool)
 
-
-check_funs <- function(newest_func, newish_func, og_func) {
-  if(identical(newest_func, newish_func)) {
-    if (identical(newest_func, og_func)) {
-      cat("Yay! Everything matches")
-    } else{
-      cat("new and og don't match :( ")
-    }
-    
-  } else {
-    cat("New and newish don't match")
-  }
-}
-
 conn_sand <- dbPool(
   drv = RPostgres::Postgres(),
   host = "PWDMARSDBS1",
@@ -27,27 +13,22 @@ edit_fetch <- edit_fetchRain(con = conn_sand,
                              target_id = "1267-2-1",
                              source = "gage",
                              start_date = "2024-03-01",
-                             end_date = "2024-04-01",
-                             DST = FALSE)
-
-fetch <- FetchRain(con = conn_sand, 
-          target_id = "1267-2-1",
-          source = "gage",
-          start_date = "2024-03-01",
-          end_date = "2024-03-31")
-
-poolClose(conn_sand)
-
-identical(fetch, edit_fetch)
+                             end_date = "2024-04-01")
 
 mars_fetch <- marsFetchRainfallData(con = conn_sand, 
                                     target_id = "1267-2-1",
                                     source = "gage",
                                     start_date = "2024-03-01",
                                     end_date = "2024-03-31")
+poolClose(conn_sand)
 
 
+mars_fetch <- mars_fetch |> dplyr::rename(dtime = dtime_est)
 
+edit_fetch <- edit_fetch |> 
+  dplyr::mutate(dtime = lubridate::with_tz(dtime, "Etc"))
+
+not_in_edit <- dplyr::setdiff(mars_fetch, edit_fetch)
 
 # 
 # 

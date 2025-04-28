@@ -1,17 +1,11 @@
-##### Any reason why target_id is not smp_id?
-edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, end_date, DST = TRUE){
-  if (isTRUE(DST)) {
-    tz <- "America/New_York"
-  } else{
-    tz <- "Etc/GMT-5"
-  }
+edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, end_date){
   # Check if there is a connection
   if(!DBI::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
   }
   
   # Make sure start and end dates are able to be saved as yyyy-mm-dd (returns with TZ)
-  dates <- c(start_date = check_date(start_date, tz), end_date = check_date(end_date, tz))
+  dates <- c(start_date = check_date(start_date), end_date = check_date(end_date))
   # length(dates) = number of valid dates
   if (length(dates) != 2) {
     rlang::abort("Please use yyyy-mm-dd for date formats")
@@ -40,7 +34,7 @@ edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_da
   smp_query <- paste0("SELECT * FROM ", rainparams$smptable)
   rainsource <- DBI::dbGetQuery(con, smp_query) %>% dplyr::filter(smp_id == target_id) %>% dplyr::pull(rainparams$uidvar)
   # Build rain query
-  rain_query <- sprintf("SELECT *, dtime_edt::varchar as dtime FROM %s WHERE %s = %s AND dtime_edt BETWEEN %s AND %s",
+  rain_query <- sprintf("SELECT *, dtime_edt as dtime FROM %s WHERE %s = %s AND dtime_edt BETWEEN %s AND %s",
                         rainparams$raintable,
                         rainparams$uidvar,
                         paste("'", rainsource, "'", sep = ""),
@@ -55,11 +49,9 @@ edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_da
     rlang::abort("There is no data in the database for this date range.")
   }
   
-  # Make dtime_edt either EST or EDT based on DST argument. (delete once datetime data in DB is stored as ETD)
+  # Make dtime_edt either EST or EDT based on DST argument. (delete once datetime data in DB is stored as EDT)
   rain_data <- rain_data |> 
-    dplyr::mutate(dtime = lubridate::force_tz(dtime_edt, tz)) |> 
-    dplyr::select(gage_rain_uid, gage_uid, rainfall_in, gage_event_uid, dtime)
-  rain_data
-  dplyr::glimpse(attributes(rain_data$dtime))
-  rain_data
+    dplyr::mutate(dtime = lubridate::force_tz(dtime, "America/New_York")) |>
+    dplyr::select(dtime, rainfall_in, gage_uid, gage_event_uid) |>
+    dplyr::arrange(dtime)
 }
