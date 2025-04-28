@@ -1,6 +1,6 @@
 ##### Any reason why target_id is not smp_id?
-edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, end_date, DLS = TRUE){
-  if (isTRUE(DLS)) {
+edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_date, end_date, DST = TRUE){
+  if (isTRUE(DST)) {
     tz <- "America/New_York"
   } else{
     tz <- "Etc/GMT-5"
@@ -12,6 +12,7 @@ edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_da
   
   # Make sure start and end dates are able to be saved as yyyy-mm-dd (returns with TZ)
   dates <- c(start_date = check_date(start_date, tz), end_date = check_date(end_date, tz))
+  # length(dates) = number of valid dates
   if (length(dates) != 2) {
     rlang::abort("Please use yyyy-mm-dd for date formats")
   }
@@ -50,13 +51,15 @@ edit_fetchRain <- function(con, target_id, source = c("gage", "radar"), start_da
   # gage_rain_uid, dtime_edt (posixct), gage_uid, rainfall_in, gage_event_uid, dtime
   rain_data <- DBI::dbGetQuery(con, rain_query)
   # Stop if there is no rain for this timeframe
-  if (nrow(rain_temp) == 0) {
+  if (nrow(rain_data) == 0) {
     rlang::abort("There is no data in the database for this date range.")
   }
   
   # Make dtime_edt either EST or EDT based on DST argument. (delete once datetime data in DB is stored as ETD)
   rain_data <- rain_data |> 
-    dplyr::mutate(dtime_est = lubridate::force_tz(dtime_edt, tz)) |> 
-    dplyr::select(gage_rain_uid, gage_uid, rainfall_in, gage_event_uid, dtime_est)
+    dplyr::mutate(dtime = lubridate::force_tz(dtime_edt, tz)) |> 
+    dplyr::select(gage_rain_uid, gage_uid, rainfall_in, gage_event_uid, dtime)
+  rain_data
+  dplyr::glimpse(attributes(rain_data$dtime))
   rain_data
 }

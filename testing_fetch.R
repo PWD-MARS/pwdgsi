@@ -27,7 +27,8 @@ edit_fetch <- edit_fetchRain(con = conn_sand,
                              target_id = "1267-2-1",
                              source = "gage",
                              start_date = "2024-03-01",
-                             end_date = "2024-04-01")
+                             end_date = "2024-04-01",
+                             DST = FALSE)
 
 fetch <- FetchRain(con = conn_sand, 
           target_id = "1267-2-1",
