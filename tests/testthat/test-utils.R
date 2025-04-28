@@ -1,7 +1,7 @@
 test_that("handles different values correctly", {
   # Works with - and /
-  expect_equal(check_date("2010-10-20", "America/New_York"), lubridate::ymd("2010-10-20", tz = "America/New_York"))
-  expect_equal(check_date("2000/01/02", "America/New_York"), lubridate::ymd("2000-01-02", tz = "America/New_York"))
+  expect_equal(check_date("2010-10-20"), lubridate::ymd("2010-10-20", tz = "America/New_York"))
+  expect_equal(check_date("2000/01/02"), lubridate::ymd("2000-01-02", tz = "America/New_York"))
   # Handles non-character values
   expect_equal(check_date(lubridate::ymd("2000-10-20"), "America/New_York"), lubridate::ymd("2000-10-20", tz = "America/New_York"))
   # Will return NULL for wrong format 
