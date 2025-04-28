@@ -25,10 +25,10 @@ poolClose(conn_sand)
 
 mars_fetch <- mars_fetch |> dplyr::rename(dtime = dtime_est)
 
-edit_fetch <- edit_fetch |> 
-  dplyr::mutate(dtime = lubridate::with_tz(dtime, "Etc"))
+edit_fetch_est <- edit_fetch |> 
+  dplyr::mutate(dtime = lubridate::with_tz(dtime, "EST"))
 
-not_in_edit <- dplyr::setdiff(mars_fetch, edit_fetch)
+not_in_edit <- dplyr::setdiff(mars_fetch, edit_fetch_est)
 
 # 
 # 
