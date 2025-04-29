@@ -11,14 +11,14 @@ if(interactive()) {
       password = Sys.getenv("shiny_pwd"))
     
     # If date in not the right format
-    expect_error(edit_fetchRain(conn_sand,
+    expect_error(fetchRain(conn_sand,
                                 target_id = "1267-2-1",
                                 source = "gage",
                                 # Invalid date
                                 start_date = "2024-0-01",
                                 end_date = "2024-03-31"))
     # If zero rows for that date range
-    expect_error(edit_fetchRain(conn_sand,
+    expect_error(fetchRain(conn_sand,
                                 target_id = "1267-2-1",
                                 source = "gage",
                                 # Invalid date

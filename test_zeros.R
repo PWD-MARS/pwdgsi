@@ -1,3 +1,4 @@
+# FetchRainfall with zeros code
 testZeros <- function(con, target_id, source = c("gage", "radar"), start_date, end_date, daylightsavings){
   if(!odbc::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
@@ -117,7 +118,7 @@ testZeros <- function(con, target_id, source = c("gage", "radar"), start_date, e
  
 }
 
-
+# Connect to the db
 conn_sand <- dbPool(
   drv = RPostgres::Postgres(),
   host = "PWDMARSDBS1",
@@ -127,13 +128,14 @@ conn_sand <- dbPool(
   password = Sys.getenv("shiny_pwd"),
   tz = NULL)
 
+# Return zeros
 zeros <- testZeros(con = conn_sand, 
                    target_id = "1267-2-1",
                    source = "gage",
                    start_date = "2024-03-01",
                    end_date = "2024-04-01")
 
-
+# FetchRainfall without zeros to compare
 noZeros <- function(con, target_id, source = c("gage", "radar"), start_date, end_date, daylightsavings){
   if(!odbc::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
@@ -192,8 +194,6 @@ no_zeros <- noZeros(con = conn_sand,
                    start_date = "2024-03-01",
                    end_date = "2024-04-01")
 
-no_zeros <- no_zeros |> dplyr::select(dtime_est, rainfall_in, gage_uid, gage_event_uid)
-
+# The difference in the size of the two dataframes are the junk zero values.
 diffs <- zeros |> dplyr::filter(is.na(dtime_est))
 
-## This code only adds these weird values at the bottom.

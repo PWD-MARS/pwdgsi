@@ -3,6 +3,7 @@
 export("%--%")
 export("%<>%")
 export("%>%")
+export(check_date)
 export(depth.to.vol)
 export(marsBaroRasterPlot)
 export(marsCheckSMPSnapshot)
