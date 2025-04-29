@@ -61,7 +61,7 @@ if(interactive()) {
                            end_date = "2024-03-31"))
     
     
-    # Test that source works correctly
+    # Test that source changes correctly
       gage <- fetchRain(conn_sand,
                            smp_id = "1267-2-1",
                            source = "gage",

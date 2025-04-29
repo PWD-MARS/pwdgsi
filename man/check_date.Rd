@@ -4,16 +4,19 @@
 \alias{check_date}
 \title{Check if a date is the proper yyyy-mm-dd format}
 \usage{
-check_date(date)
+check_date(date, tz = "America/New_York")
 }
 \arguments{
 \item{date}{Date value to check}
 
-\item{tz}{Timezone character value}
+\item{tz}{Timezone character value with default as EDT}
 }
 \value{
 The date with yyyy-mm-dd format or NULL if wrong format with warning
 }
 \description{
 Check if a date is the proper yyyy-mm-dd format
+}
+\examples{
+date <- check_date("2024-02-01")
 }

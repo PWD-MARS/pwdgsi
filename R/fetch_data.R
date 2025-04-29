@@ -1,7 +1,21 @@
-fetchRain <- function(con, smp_id, source = c("gage", "radar"), start_date, end_date){
+#' Fetch rainfall data
+#'
+#' @param conn Connection to database
+#' @param smp_id SMP ID for the desired rainfall data
+#' @param source Source of the rainfall data: Gage or Radar
+#' @param start_date Start of the rainfall period (yyyy-mm-dd format)
+#' @param end_date End of the rainfall period (yyyy-mm-dd format)
+#'
+#' @return Data frame of rainfall data between the start and end date
+#' @export
+#' 
+#' @examples
+#' \dontrun{rain_data <- fetchRain(conn, "1267-2-1, gage, "2024-01-31", "2024-03-31")}
+#' 
+fetchRain <- function(conn, smp_id, source = c("gage", "radar"), start_date, end_date){
   # Check if there is a connection
-  if(!DBI::dbIsValid(con)){
-    stop("Argument 'con' is not an open ODBC channel")
+  if(!DBI::dbIsValid(conn)){
+    stop("Argument 'conn' is not an open ODBC channel")
   }
   
   # Make sure start and end dates are able to be saved as yyyy-mm-dd (returns with tz)
@@ -34,7 +48,7 @@ fetchRain <- function(con, smp_id, source = c("gage", "radar"), start_date, end_
                           rainparams$uid,
                           rainparams$smp_table,
                           smp_id)
-  rainsource <- DBI::dbGetQuery(con, rainsource_q)
+  rainsource <- DBI::dbGetQuery(conn, rainsource_q)
   # # Build rain query
   rain_query <- sprintf("SELECT *, dtime_edt as dtime FROM %s WHERE %s = %s AND dtime_edt BETWEEN %s AND %s",
                         rainparams$rain_table,
@@ -45,7 +59,7 @@ fetchRain <- function(con, smp_id, source = c("gage", "radar"), start_date, end_
   )
   # Returns rain data based on the SMP and start/end date
   # gage_rain_uid, dtime_edt (posixct), gage_uid, rainfall_in, gage_event_uid, dtime
-  rain_data <- DBI::dbGetQuery(con, rain_query)
+  rain_data <- DBI::dbGetQuery(conn, rain_query)
   # Stop if there is no rain for this timeframe
   if (nrow(rain_data) == 0) {
     rlang::abort("There is no data in the database for this date range.")
