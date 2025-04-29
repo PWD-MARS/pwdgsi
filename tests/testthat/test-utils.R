@@ -11,13 +11,14 @@ test_that("handles different values correctly", {
 })
 
 test_that("returns the correct dates with time zones", {
+  # Check character date is returned as EDT
   expect_equal(check_date(lubridate::ymd("2010-10-20",
                                          tz = "America/New_York"), "America/New_York"),
                lubridate::ymd("2010-10-20", tz = "America/New_York"))
   # It should always update with the correct time zone.
   expect_equal(check_date(lubridate::ymd("2010-10-20",
-                                         tz = "Etc/GMT-4"), "Etc/GMT-4"),
-               lubridate::ymd("2010-10-20", tz = "Etc/GMT-4"))
+                                         tz = "EST"), "EST"),
+               lubridate::ymd("2010-10-20", tz = "EST"))
   # Without DST should be ETC/GMT-5
   expect_equal(check_date(lubridate::ymd("2010-10-20",
                                          tz = "America/New_York"), "America/New_York"),
