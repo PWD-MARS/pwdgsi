@@ -94,7 +94,7 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   } else { #Parameter is somehow invalid
     stop("Argument 'source' is not one of 'gage' or 'radar'")
   }
-
+  
   #Get closest rainfall source
   smp_query <- paste0("SELECT * FROM ", rainparams$smptable)
   #print(smp_query)
@@ -102,12 +102,12 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   
   #Collect gage data
   #First, get all the relevant data from the closest gage
-  rain_query <- paste(paste0("SELECT *, dtime_edt::varchar as dtime FROM ", rainparams$raintable, " "),
+  rain_query <- paste(paste0("SELECT * FROM ", rainparams$raintable, " "),
                       paste0("WHERE ", rainparams$uidvar, " = CAST('", rainsource, "' as int)"),
-                      "AND dtime_edt >= Date('", start_date, "')",
-                      "AND dtime_edt <= Date('", end_date + lubridate::days(1), "');")
+                      "AND dtime >= Date('", start_date, "')",
+                      "AND dtime <= Date('", end_date + lubridate::days(1), "');")
   
-  #print(rain_query)
+  # print(rain_query)
   rain_temp <- odbc::dbGetQuery(con, rain_query)
   
   if(nrow(rain_temp) == 0){
@@ -119,19 +119,22 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   }
   
   rain_temp$rainfall_in %<>% as.numeric
-  # rain_temp$dtime_edt %<>% lubridate::ymd_hms(tz = "America/New_York")
-  # we need to reformat dates at midnight because ymd_hms does not know how to handle them
-  # this is actually a base R issue, but it is still dumb
-  # https://github.com/tidyverse/lubridate/issues/1124
-  rain_temp %<>% dplyr::mutate(dtime_est = lubridate::ymd_hms(dtime, tz = "EST")) %>% dplyr::select(-dtime_edt, -dtime)
   
-  #Apparently, attempting to set the time zone on a datetime that falls squarely on the spring forward datetime
-  #Such as 2005-04-03 02:00:00
-  #Returns NA, because the time is impossible.
-  #I hate this so, so much
-  #To mitigate this, we will strip NA values from the new object
-  # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
-  rain_temp %<>% dplyr::filter(!is.na(dtime_est)) %>% dplyr::arrange(dtime_est)
+  rain_temp <- rain_temp |>
+    dplyr::mutate(dtime =  lubridate::force_tz(dtime, tz = "America/New_York"))
+  # # we need to reformat dates at midnight because ymd_hms does not know how to handle them
+  # # this is actually a base R issue, but it yyis still dumb
+  # # https://github.com/tidyverse/lubridate/issues/1124
+  rain_temp <- rain_temp |>
+    dplyr::mutate(dtime = lubridate::with_tz(dtime, tz = "EST"))
+  # #Apparently, attempting to set the time zone on a datetime that falls squarely on the spring forward datetime
+  # #Such as 2005-04-03 02:00:00
+  # #Returns NA, because the time is impossible.
+  # #I hate this so, so much
+  # #To mitigate this, we will strip NA values from the new object
+  # # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
+  rain_temp <- rain_temp |>
+    dplyr::filter(!is.na(dtime)) %>% dplyr::arrange(dtime)
   
   #Our water level data is not corrected for daylight savings time. ie it doesn't spring forwards
   #So we must shift back any datetimes within the DST window
@@ -141,17 +144,17 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   #   rain_temp$dtime_edt %<>% lubridate::force_tz("EST") #Assign new TZ without changing dates
   #   rain_temp$dtime_edt[dst_index] <- rain_temp$dtime_edt[dst_index] - lubridate::hours(1)
   # }
-  
-  #Punctuate data with zeroes to prevent linear interpolation when plotting
-  #If the time between data points A and B is greater than 15 minutes (the normal timestep), we must insert a zero 15 minutes after A
-  #If it's greather than 30 minutes, we must insert a zero 15 minutes before B also
-  
-  #First, create data frame to contain zero fills with same column names as our rain data
+  # 
+  # #Punctuate data with zeroes to prevent linear interpolation when plotting
+  # #If the time between data points A and B is greater than 15 minutes (the normal timestep), we must insert a zero 15 minutes after A
+  # #If its greather than 30 minutes, we must insert a zero 15 minutes before B also
+  # 
+  # #First, create data frame to contain zero fills with same column names as our rain data
   zeroFills <- rain_temp[0,]
   #print("Begin zero-filling process")
   for(i in 1:(nrow(rain_temp) - 1)){
     # k <- difftime(rain_temp$dtime_edt[i+1], rain_temp$dtime_edt[i], units = "min")
-    k <- difftime(rain_temp$dtime_est[i+1], rain_temp$dtime_est[i], units = "min")    
+    k <- difftime(rain_temp$dtime[i+1], rain_temp$dtime[i], units = "min")
     
     #If gap is > 15 mins, put a zero 15 minutes after the gap starts
     if(k > 15){
@@ -160,8 +163,8 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
       zeroFillIndex <- nrow(zeroFills)+1
       
       #Boundaries of the interval to be zeroed
-      boundary.low <- rain_temp$dtime_est[i]
-      boundary.high <- rain_temp$dtime_est[i+1]
+      boundary.low <- rain_temp$dtime[i]
+      boundary.high <- rain_temp$dtime[i+1]
       # boundary.low <- rain_temp$dtime_edt[i]
       # boundary.high <- rain_temp$dtime_edt[i+1]
       
@@ -192,30 +195,31 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
       
     }
   }
-
-  #Replace UIDs with SMP IDs
-  rainlocs <- odbc::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$loctable))
+  #### No including because this causes more issues than it should
+  # #Replace UIDs with SMP IDs
+  # rainlocs <- DBI::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$loctable))
   # finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
   #   dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
   #   dplyr::select(dtime_edt, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
   #   dplyr::arrange(dtime_edt)
-  finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
-    dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
-    dplyr::select(dtime_est, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
-    dplyr::arrange(dtime_est)
-  
-  #round date to nearest minute
-  finalseries$dtime_est %<>% lubridate::round_date("minute")
-  
-  #Rename dtime column if we are undoing daylight savings time
-  # if(daylightsavings == FALSE){
-  #   finalseries <- finalseries %>%
-  #     dplyr::mutate(dtime_est = dtime_edt) %>%
-  #     dplyr::select(-dtime_edt)
-  #   finalseries <- dplyr::select(finalseries, dtime_est, rainfall_in, rainparams$uidvar, rainparams$eventuidvar)
-  # }
-  
-  return(finalseries)
+  # finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
+  #   dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
+  #   dplyr::select(dtime, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
+  #   dplyr::arrange(dtime)
+  # 
+  # #round date to nearest minute
+  rain_temp <- rain_temp |>
+    dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
+  # 
+  # #Rename dtime column if we are undoing daylight savings time
+  # # if(daylightsavings == FALSE){
+  # #   finalseries <- finalseries %>%
+  # #     dplyr::mutate(dtime_est = dtime_edt) %>%
+  # #     dplyr::select(-dtime_edt)
+  # #   finalseries <- dplyr::select(finalseries, dtime_est, rainfall_in, rainparams$uidvar, rainparams$eventuidvar)
+  # # }
+  # 
+  # return(finalseries)
 }
 
 # marsGapFillEventID -----------------------
