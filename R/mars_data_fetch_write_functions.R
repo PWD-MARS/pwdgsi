@@ -826,7 +826,7 @@ marsFetchSMPSnapshot <- function(con, smp_id, ow_suffix, request_date){
 #'
 #' Returns a data frame with requested SMP water level data
 #'   
-#' @param con An ODBC connection to the MARS Analysis database returned by odbc::dbConnect
+#' @param con An connection to the MARS Analysis database returned
 #' @param target_id vector of chr, SMP ID, where the user has requested data
 #' @param ow_suffix vector of chr, SMP ID, where the user has requested data
 #' @param start_date string, format: "YYYY-MM-DD", start of data request range
@@ -836,7 +836,7 @@ marsFetchSMPSnapshot <- function(con, smp_id, ow_suffix, request_date){
 #' @return Output will be a dataframe with the following columns: 
 #' 
 #'     \item{ow_leveldata_uid}{int}
-#'     \item{dtime_est}{POSIXct datetime}
+#'     \item{dtime}{POSIXct datetime in America/New_York}
 #'     \item{level_ft}{num, recorded water level in feet}
 #'     \item{ow_uid}{num, ow_uid derived from smp_id and ow_suffix} 
 #'     
@@ -845,9 +845,7 @@ marsFetchSMPSnapshot <- function(con, smp_id, ow_suffix, request_date){
 #' @seealso \code{\link{marsFetchRainfallData}}, \code{\link{marsFetchRainEventData}}, \code{\link{marsFetchMonitoringData}}
 #' 
 marsFetchLevelData <- function(con, target_id, ow_suffix, start_date, end_date, sump_correct){
-  
-  #1 Argument Validation
-  #1.1 Check database connection
+  # Check DB connection
   if(!odbc::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
   }
@@ -858,35 +856,35 @@ marsFetchLevelData <- function(con, target_id, ow_suffix, start_date, end_date, 
   validity_query <- paste0("select * from fieldwork.fun_get_ow_uid('",target_id,"','",ow_suffix,"', NULL)")
   ow_uid <- odbc::dbGetQuery(con, validity_query)
   
-  #1.3 check if data exists in viw will have a sump. Change sump_correct to FALSE if necessary
-  
-  
-  #1.4 Pick which table to query
-  if(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")){
-    level_table <- "data.tbl_gw_depthdata_raw"
-  }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == TRUE){
-    level_table <- "data.viw_ow_leveldata_sumpcorrected"
-  }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == FALSE){
-    level_table <- "data.tbl_ow_leveldata_raw"
-  }
-  start_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  end_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  
-  #1.5 Add buffer to requested dates
-  start_date <- lubridate::round_date(start_date) - lubridate::days(1)
-  end_date <- lubridate::round_date(end_date) + lubridate::days(1)
-  
-  #2 Query database for level data
-  leveldata_query <- paste0("select * from ", level_table, "
-                                WHERE ow_uid = '", ow_uid, "'
-                                AND dtime_est BETWEEN '",start_date,"' AND '", end_date, "'")
-  
-  leveldata <- odbc::dbGetQuery(con, leveldata_query) %>% dplyr::arrange(dtime_est)
-  
-  leveldata$dtime_est %<>% lubridate::force_tz(tz = "EST") %>% lubridate::round_date("minute")
-  
-  #3 Return level data
-  return(leveldata)
+  # #1.3 check if data exists in viw will have a sump. Change sump_correct to FALSE if necessary
+  # 
+  # 
+  # #1.4 Pick which table to query
+  # if(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")){
+  #   level_table <- "data.tbl_gw_depthdata_raw"
+  # }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == TRUE){
+  #   level_table <- "data.viw_ow_leveldata_sumpcorrected"
+  # }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == FALSE){
+  #   level_table <- "data.tbl_ow_leveldata_raw"
+  # }
+  # start_date %<>% as.POSIXct(format = '%Y-%m-%d')
+  # end_date %<>% as.POSIXct(format = '%Y-%m-%d')
+  # 
+  # #1.5 Add buffer to requested dates
+  # start_date <- lubridate::round_date(start_date) - lubridate::days(1)
+  # end_date <- lubridate::round_date(end_date) + lubridate::days(1)
+  # 
+  # #2 Query database for level data
+  # leveldata_query <- paste0("select * from ", level_table, "
+  #                               WHERE ow_uid = '", ow_uid, "'
+  #                               AND dtime_est BETWEEN '",start_date,"' AND '", end_date, "'")
+  # 
+  # leveldata <- odbc::dbGetQuery(con, leveldata_query) %>% dplyr::arrange(dtime_est)
+  # 
+  # leveldata$dtime_est %<>% lubridate::force_tz(tz = "EST") %>% lubridate::round_date("minute")
+  # 
+  # #3 Return level data
+  # return(leveldata)
 }
 
 # marsFetchRainEventData --------------------------------
