@@ -94,9 +94,9 @@ old_mars2 <- old_mars |>
 diffs <- dplyr::symdiff(new_mars, old_mars2)
 
 
-old_10 <- old_mars2 |> dplyr::filter(dplyr::between(dtime, lubridate::ymd("2024-10-01"), lubridate::ymd("2024-11-15")), smp_id == '9-1-1')
-new_10 <- new_mars |> dplyr::filter(dplyr::between(dtime, lubridate::ymd("2024-10-01"), lubridate::ymd("2024-11-15")), smp_id == '9-1-1')
+old_10 <- old_mars2 |> dplyr::filter(dplyr::between(dtime, lubridate::ymd("2024-10-01"), lubridate::ymd("2024-11-15")))
+new_10 <- new_mars |> dplyr::filter(dplyr::between(dtime, lubridate::ymd("2024-10-01"), lubridate::ymd("2024-11-15")))
 
 # Same as above
-diffs10 <- dplyr::setdiff(old_10, new_10)
+diffs10 <- dplyr::symdiff(old_10, new_10)
 

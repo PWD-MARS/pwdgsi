@@ -58,12 +58,11 @@ marsFetchPrivateSMPRecords <- function(con, tracking_number){
 #' @param source chr, either "gage" or "radar" to retrieve rain gage data or radar rainfall data
 #' @param start_date string or POSIXCT date, format: "YYYY-MM-DD", start of data request range
 #' @param end_date stringor POSIXCT date, format: "YYYY-MM-DD", end of data request range
-#' @param daylightsavings logi, Adjust for daylight savings time? when doing QAQC
-#'   this should be \code{FALSE} because the water level data does not spring forwards.
+#' @param daylightsavings logi, for now, this should always be \code{FALSE}
 #'
 #' @return Output will be a data frame with four columns, which corresponds to the specified SMP and date range:
 #' 
-#'   \item{dtime_est OR dtime_edt}{POSIXct datetime with tz = EST or EDT as specified by \code{daylight_savings}}
+#'   \item{dtime}{POSIXct datetime in America/New_York}
 #'   \item{rainfall_in}{num, rainfall for the 15 minute preceding the corresponding datetime}
 #'   \item{gage_uid OR radar_uid}{Unique identifier for where the data came from}
 #'   \item{event_id}{event number during this timestep}
@@ -77,7 +76,6 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   if(!odbc::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
   }
-  # browser()
   start_date %<>% as.POSIXct(format = '%Y-%m-%d')
   end_date %<>% as.POSIXct(format = '%Y-%m-%d')
   
@@ -98,7 +96,7 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   #Get closest rainfall source
   smp_query <- paste0("SELECT * FROM ", rainparams$smptable)
   #print(smp_query)
-  rainsource <- odbc::dbGetQuery(con, smp_query) %>% dplyr::filter(smp_id == target_id) %>% dplyr::pull(rainparams$uidvar)
+  rainsource <- DBI::dbGetQuery(con, smp_query) %>% dplyr::filter(smp_id == target_id) %>% dplyr::pull(rainparams$uidvar)
   
   #Collect gage data
   #First, get all the relevant data from the closest gage
@@ -106,10 +104,9 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
                       paste0("WHERE ", rainparams$uidvar, " = CAST('", rainsource, "' as int)"),
                       "AND dtime >= Date('", start_date, "')",
                       "AND dtime <= Date('", end_date + lubridate::days(1), "');")
-  
-  # print(rain_query)
-  rain_temp <- odbc::dbGetQuery(con, rain_query)
-  
+  # Get rain data
+  rain_temp <- DBI::dbGetQuery(con, rain_query)
+  # Error messages if there are no rows in returned from the DB
   if(nrow(rain_temp) == 0){
     
     if(lubridate::month(start_date) == lubridate::month(lubridate::today())){
@@ -117,9 +114,9 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
     }
     stop("There is no data in the database for this date range.")
   }
-  
+  # Make sure rainfall is numeric?
   rain_temp$rainfall_in %<>% as.numeric
-  
+  # Return rainfall
   rain_temp
   # 
   # rain_temp <- rain_temp |>
@@ -352,17 +349,11 @@ yday_decimal <- function(dtime_est){
 #'
 #' @return Output will be a dataframe with four columns: 
 #'   
-#'     \item{dtime_est}{POSIXct, format: "YYYY-MM-DD HH:MM:SS"}
+#'     \item{dtime}{POSIXct, format: "YYYY-MM-DD HH:MM:SS" in America/New_York}
 #'     \item{baro_psi}{num, barometric pressure in psi}
 #'     \item{smp_id}{chr, SMP ID for each baro}
-#'     \item{neighbors}{num, count of baros interpolated from}
 #'     
-#'     If the target SMP has an on-site baro with data, the "neighbors" column will be NA.
-#'     If there are fewer than five baros to interprolate from, based on \code{\link{marsInterpolateBaro}},
-#'     all columns other than "dtime_est" will be NA.
-#'     
-#'     The function will also output and open an html document describing the data request and including
-#'     a raster plot of barometric pressures. (This feature is currently disabled. 2/2/21 - NM)
+#'     If there are fewer than five baros to interprolate from, based on \code{\link{marsInterpolateBaro}}
 #' 
 #' @export
 #'
@@ -412,7 +403,6 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
   }
 
   baro$dtime %<>% lubridate::with_tz(tz = "America/New_York")
-  baro
 
   #initialize countNAs_t in case the loop doesn't run. It is passed as a param to markdown so it needs to exist.
   countNAs_t <- 0
@@ -437,7 +427,6 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
       baro_pad[,i] <- zoo::na.locf(baro_pad[,i], maxgap = 2, na.rm = FALSE) #maxgap = 2 means only fill NAs created by the pad
       countNAs[,i] <- countNAs[,i]- sum(is.na(baro_pad[,i])) #subtract remaining NAs to get number of NAs filled
     }
-
     countNAs %<>% dplyr::select(-dtime)
     countNAs_t <- countNAs %>% t() %>% data.frame() %>% tibble::rownames_to_column() %>%  magrittr::set_colnames(c("Location", "No. of LOCFs"))
 
@@ -445,8 +434,6 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     baro <- tidyr::gather(baro_pad, "smp_id", "baro_psi", -dtime) %>%
       dplyr::filter(!is.na(baro_psi))
   }
-  baro
-
   #Calculate the distance between every baro location and the target SMP, then add weight
   baro_weights <- dplyr::filter(smp_loc, smp_id %in% baro_smp) %>%
     dplyr::mutate(lon_dist = lon_wgs84 - locus_loc$lon_wgs84,
@@ -458,7 +445,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
 
   #Cap weight at 1000
   baro_weights$weight <- replace(baro_weights$weight, baro_weights$weight > 1000, 1000)
-
+  # Interpolate and return the baro data
   interpolated_baro <- dplyr::left_join(baro, baro_weights, by = "smp_id") %>% #join baro and weights
     dplyr::group_by(dtime) %>% #group datetimes, then calculate weighting effect for each datetime
     dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),

@@ -43,7 +43,7 @@ old_mars <- old_mars |> dplyr::select(dtime_est, gage_uid, rainfall_in) |>
                                                dtime - lubridate::hours(1), dtime))
 
 # Differences are only midnights which don't exist in production
-diffs <- dplyr::setdiff(new_mars |> dplyr::select(gage_uid, dtime, rainfall_in),
+diffs <- dplyr::symdiff(new_mars |> dplyr::select(gage_uid, dtime, rainfall_in),
                         old_mars)
 
 # Check fall back in November
@@ -87,5 +87,5 @@ old_mars <- old_mars |> dplyr::select(dtime_est, gage_uid, rainfall_in) |>
   dplyr::mutate(dtime = dplyr::if_else(dtime <= lubridate::ymd_hms("2024-11-03 02:00:00", tz = "EST"), 
                                        dtime - lubridate::hours(1), dtime))
 
-diffs <- dplyr::setdiff(new_mars |> dplyr::select(gage_uid, dtime, rainfall_in),
+diffs <- dplyr::symdiff(new_mars |> dplyr::select(gage_uid, dtime, rainfall_in),
                         old_mars)
