@@ -41,7 +41,6 @@ old_baro <- function(con, target_id, start_date, end_date, data_interval = c("5 
 
 
   baro$dtime_est %<>% lubridate::force_tz(tz = "EST")
-  baro
 
   #initialize countNAs_t in case the loop doesn't run. It is passed as a param to markdown so it needs to exist.
   countNAs_t <- 0
