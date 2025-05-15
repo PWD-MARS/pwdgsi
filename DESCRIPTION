@@ -29,7 +29,6 @@ Imports:
     rlang,
     rmarkdown,
     scales,
-    sp,
     tidyverse,
     ggtext,
     zoo,
