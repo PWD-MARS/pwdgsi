@@ -120,21 +120,21 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   
   rain_temp$rainfall_in %<>% as.numeric
   
-  rain_temp <- rain_temp |>
-    dplyr::mutate(dtime =  lubridate::force_tz(dtime, tz = "America/New_York"))
-  # # we need to reformat dates at midnight because ymd_hms does not know how to handle them
-  # # this is actually a base R issue, but it yyis still dumb
-  # # https://github.com/tidyverse/lubridate/issues/1124
-  rain_temp <- rain_temp |>
-    dplyr::mutate(dtime = lubridate::with_tz(dtime, tz = "EST"))
-  # #Apparently, attempting to set the time zone on a datetime that falls squarely on the spring forward datetime
-  # #Such as 2005-04-03 02:00:00
-  # #Returns NA, because the time is impossible.
-  # #I hate this so, so much
-  # #To mitigate this, we will strip NA values from the new object
-  # # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
-  rain_temp <- rain_temp |>
-    dplyr::filter(!is.na(dtime)) %>% dplyr::arrange(dtime)
+  rain_temp
+  # 
+  # rain_temp <- rain_temp |>
+  #   dplyr::mutate(dtime =  lubridate::force_tz(dtime, tz = "America/New_York"))
+  # # # we need to reformat dates at midnight because ymd_hms does not know how to handle them
+  # # # this is actually a base R issue, but it yyis still dumb
+  # # # https://github.com/tidyverse/lubridate/issues/1124
+  # # #Apparently, attempting to set the time zone on a datetime that falls squarely on the spring forward datetime
+  # # #Such as 2005-04-03 02:00:00
+  # # #Returns NA, because the time is impossible.
+  # # #I hate this so, so much
+  # # #To mitigate this, we will strip NA values from the new object
+  # # # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
+  # rain_temp <- rain_temp |>
+  #   dplyr::filter(!is.na(dtime)) %>% dplyr::arrange(dtime)
   
   #Our water level data is not corrected for daylight savings time. ie it doesn't spring forwards
   #So we must shift back any datetimes within the DST window
@@ -150,51 +150,51 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   # #If its greather than 30 minutes, we must insert a zero 15 minutes before B also
   # 
   # #First, create data frame to contain zero fills with same column names as our rain data
-  zeroFills <- rain_temp[0,]
-  #print("Begin zero-filling process")
-  for(i in 1:(nrow(rain_temp) - 1)){
-    # k <- difftime(rain_temp$dtime_edt[i+1], rain_temp$dtime_edt[i], units = "min")
-    k <- difftime(rain_temp$dtime[i+1], rain_temp$dtime[i], units = "min")
-    
-    #If gap is > 15 mins, put a zero 15 minutes after the gap starts
-    if(k > 15){
-      
-      
-      zeroFillIndex <- nrow(zeroFills)+1
-      
-      #Boundaries of the interval to be zeroed
-      boundary.low <- rain_temp$dtime[i]
-      boundary.high <- rain_temp$dtime[i+1]
-      # boundary.low <- rain_temp$dtime_edt[i]
-      # boundary.high <- rain_temp$dtime_edt[i+1]
-      
-      #The zero goes 15 minutes (900 seconds) after the first boundary
-      #Filled by index because R is weird about partially filled data frame rows
-      fill <- boundary.low + lubridate::seconds(900)
-      #these were causing several functions to crash. Need a way to index so this doesn't happen again.
-      zeroFills[zeroFillIndex, 5] <- fill                   #dtime_edt
-      zeroFills[zeroFillIndex, 3] <- 0                      #rainfall_in
-      zeroFills[zeroFillIndex, 2] <- rainsource   #gage_uid or radarcell_uid
-      # browser()
-      # print(paste("Gap-filling event ID. Before:", rain_temp$event[i], "After:", rain_temp$event[i+1]))
-      zeroFills[zeroFillIndex, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
-      
-      #If the boundary is longer than 30 minutes, we need a second zero
-      if(k > 30){
-        
-        #This zero goes 15 minutes before the upper boundary
-        fill <- boundary.high - lubridate::seconds(900)
-        zeroFills[zeroFillIndex + 1, 2] <- fill                   #dtime_edt
-        zeroFills[zeroFillIndex + 1, 4] <- 0                      #rainfall_in
-        zeroFills[zeroFillIndex + 1, 3] <- rainsource   #gage_uid or radarcell_uid
-        
-        #print(paste("Gap-filling event ID. Before:", rain_temp[i, 5], "After:", rain_temp[i+1, 5]))
-        zeroFills[zeroFillIndex + 1, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
-        
-      }
-      
-    }
-  }
+  # zeroFills <- rain_temp[0,]
+  # #print("Begin zero-filling process")
+  # for(i in 1:(nrow(rain_temp) - 1)){
+  #   # k <- difftime(rain_temp$dtime_edt[i+1], rain_temp$dtime_edt[i], units = "min")
+  #   k <- difftime(rain_temp$dtime[i+1], rain_temp$dtime[i], units = "min")
+  #   
+  #   #If gap is > 15 mins, put a zero 15 minutes after the gap starts
+  #   if(k > 15){
+  #     
+  #     
+  #     zeroFillIndex <- nrow(zeroFills)+1
+  #     
+  #     #Boundaries of the interval to be zeroed
+  #     boundary.low <- rain_temp$dtime[i]
+  #     boundary.high <- rain_temp$dtime[i+1]
+  #     # boundary.low <- rain_temp$dtime_edt[i]
+  #     # boundary.high <- rain_temp$dtime_edt[i+1]
+  #     
+  #     #The zero goes 15 minutes (900 seconds) after the first boundary
+  #     #Filled by index because R is weird about partially filled data frame rows
+  #     fill <- boundary.low + lubridate::seconds(900)
+  #     #these were causing several functions to crash. Need a way to index so this doesn't happen again.
+  #     zeroFills[zeroFillIndex, 5] <- fill                   #dtime_edt
+  #     zeroFills[zeroFillIndex, 3] <- 0                      #rainfall_in
+  #     zeroFills[zeroFillIndex, 2] <- rainsource   #gage_uid or radarcell_uid
+  #     # browser()
+  #     # print(paste("Gap-filling event ID. Before:", rain_temp$event[i], "After:", rain_temp$event[i+1]))
+  #     zeroFills[zeroFillIndex, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
+  #     
+  #     #If the boundary is longer than 30 minutes, we need a second zero
+  #     if(k > 30){
+  #       
+  #       #This zero goes 15 minutes before the upper boundary
+  #       fill <- boundary.high - lubridate::seconds(900)
+  #       zeroFills[zeroFillIndex + 1, 2] <- fill                   #dtime_edt
+  #       zeroFills[zeroFillIndex + 1, 4] <- 0                      #rainfall_in
+  #       zeroFills[zeroFillIndex + 1, 3] <- rainsource   #gage_uid or radarcell_uid
+  #       
+  #       #print(paste("Gap-filling event ID. Before:", rain_temp[i, 5], "After:", rain_temp[i+1, 5]))
+  #       zeroFills[zeroFillIndex + 1, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
+  #       
+  #     }
+  #     
+  #   }
+  # }
   #### No including because this causes more issues than it should
   # #Replace UIDs with SMP IDs
   # rainlocs <- DBI::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$loctable))
@@ -208,8 +208,8 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   #   dplyr::arrange(dtime)
   # 
   # #round date to nearest minute
-  rain_temp <- rain_temp |>
-    dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
+  # rain_temp <- rain_temp |>
+  #   dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
   # 
   # #Rename dtime column if we are undoing daylight savings time
   # # if(daylightsavings == FALSE){
@@ -374,48 +374,49 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
   if(!odbc::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
   }
-
-
+  
+  
   #Handle date Conversion
   start_date %<>% as.POSIXct(format = '%Y-%m-%d')
   end_date %<>% as.POSIXct(format = '%Y-%m-%d')
   
   #Get SMP locations, and the locations of the baro sensors
-  smp_loc <- odbc::dbGetQuery(con, "SELECT * FROM admin.tbl_smp_loc")
+  smp_loc <- DBI::dbGetQuery(con, "SELECT * FROM admin.tbl_smp_loc")
   locus_loc <- dplyr::filter(smp_loc, smp_id == target_id)
-  baro_smp <- odbc::dbGetQuery(con, "SELECT DISTINCT smp_id FROM admin.tbl_baro_rawfile;") %>% dplyr::pull(smp_id)
-
-  #Collect baro data
-  #Get all baro data for the specified time period
-  baro <- odbc::dbGetQuery(con, paste0("SELECT * FROM data.viw_barodata_smp b WHERE b.dtime_est >= '", start_date, "'", " AND b.dtime_est <= '", end_date + lubridate::days(1), "' order by dtime_est;"))
+  baro_smp <- DBI::dbGetQuery(con, "SELECT DISTINCT smp_id FROM admin.tbl_baro_rawfile;") %>% dplyr::pull(smp_id)
   
-  baro_latest_dtime <- odbc::dbGetQuery(con, paste0("SELECT max(dtime_est) FROM data.tbl_baro WHERE dtime_est < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
-  baro_latest_valid <- odbc::dbGetQuery(con, paste0("SELECT max(dtime_est) FROM data.viw_barodata_neighbors WHERE neighbors >= 4 and dtime_est < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
+  # #Collect baro data
+  # #Get all baro data for the specified time period
+  baro <- DBI::dbGetQuery(con, paste0("SELECT * FROM data.viw_barodata_smp WHERE dtime >= '", start_date, "'", " AND dtime <= '", end_date + lubridate::days(1), "' order by dtime;"))
+  # 
+  baro_latest_dtime <- odbc::dbGetQuery(con, paste0("SELECT max(dtime) FROM data.tbl_baro WHERE dtime < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
+  baro_latest_valid <- odbc::dbGetQuery(con, paste0("SELECT max(dtime) FROM data.viw_barodata_neighbors WHERE neighbors >= 4 and dtime < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
   
-  if(length(baro$dtime_est) == 0){
+  if(length(baro$dtime) == 0){
     stop (paste0("No data available in the reqested interval. The latest available baro data is from ", baro_latest_dtime, "."))
   }
   
   #this is a seperate pipe so that it could be stopped before the error
-  needs_thickening <- baro$dtime_est %>% lubridate::second() %>% {. > 0} %>% any() == TRUE
+  needs_thickening <- baro$dtime %>% lubridate::second() %>% {. > 0} %>% any() == TRUE
   if(needs_thickening == TRUE){
-    baro %<>% padr::thicken(interval = "5 mins", rounding = "down") %>% 
-      dplyr::group_by(dtime_est_5_min, smp_id) %>% 
-      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>% 
-      dplyr::select(dtime_est = dtime_est_5_min, smp_id, baro_psi) %>% 
+    baro %<>% padr::thicken(interval = "5 mins", rounding = "down") %>%
+      dplyr::group_by(dtime_5_min, smp_id) %>%
+      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>%
+      dplyr::select(dtime = dtime_5_min, smp_id, baro_psi) %>%
       dplyr::ungroup()
   }else{
-    baro %<>% dplyr::group_by(dtime_est, smp_id) %>% 
-      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>% 
-      dplyr::select(dtime_est, smp_id, baro_psi) %>% 
+    baro %<>% dplyr::group_by(dtime, smp_id) %>%
+      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>%
+      dplyr::select(dtime, smp_id, baro_psi) %>%
       dplyr::ungroup()
   }
   
-  baro$dtime_est %<>% lubridate::force_tz(tz = "EST")
+  baro$dtime %<>% lubridate::with_tz(tz = "EST")
+  baro
   
-  #initialize countNAs_t in case the loop doesn't run. It is passed as a param to markdown so it needs to exist. 
-  countNAs_t <- 0 
-
+  #initialize countNAs_t in case the loop doesn't run. It is passed as a param to markdown so it needs to exist.
+  countNAs_t <- 0
+  
   #When the user requests data at a 5-minute resolution, we need to stretch our 15-minute data into 5-minute data
   #We can use tidyr::spread and padr::pad to generate the full 5 minute time series,
   #And then use zoo::na.locf (last observation carried forward) to fill the NAs with the most recent value
@@ -427,7 +428,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     
     #Pad installs 5 minute intervals in our 15 minute dtime_est column. All other columns become NA
     #End value is 10 minutes after the final period because that 15 minute data point is good for 10 more minutes
-    baro_pad <- padr::pad(baro, start_val = min(baro$dtime_est), end_val = max(baro$dtime_est) + lubridate::minutes(10), interval = "5 mins")
+    baro_pad <- padr::pad(baro, start_val = min(baro$dtimet), end_val = max(baro$dtime) + lubridate::minutes(10), interval = "5 mins")
     
     #To count the LOCF operations, we count the NAs in the data frame before and after the LOCF
     countNAs <- baro_pad[1,]
@@ -437,13 +438,14 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
       countNAs[,i] <- countNAs[,i]- sum(is.na(baro_pad[,i])) #subtract remaining NAs to get number of NAs filled
     }
     
-    countNAs %<>% dplyr::select(-dtime_est)
+    countNAs %<>% dplyr::select(-dtime)
     countNAs_t <- countNAs %>% t() %>% data.frame() %>% tibble::rownames_to_column() %>%  magrittr::set_colnames(c("Location", "No. of LOCFs"))
     
     #Return baro data to long data format
-    baro <- tidyr::gather(baro_pad, "smp_id", "baro_psi", -dtime_est) %>%
+    baro <- tidyr::gather(baro_pad, "smp_id", "baro_psi", -dtime) %>%
       dplyr::filter(!is.na(baro_psi))
   }
+  baro
   
   #Calculate the distance between every baro location and the target SMP, then add weight
   baro_weights <- dplyr::filter(smp_loc, smp_id %in% baro_smp) %>%
@@ -458,100 +460,100 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
   baro_weights$weight <- replace(baro_weights$weight, baro_weights$weight > 1000, 1000)
   
   interpolated_baro <- dplyr::left_join(baro, baro_weights, by = "smp_id") %>% #join baro and weights
-    dplyr::group_by(dtime_est) %>% #group datetimes, then calculate weighting effect for each datetime
+    dplyr::group_by(dtime) %>% #group datetimes, then calculate weighting effect for each datetime
     dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
                      smp_id =  "Interpolated",
-                     neighbors = dplyr::n()) %>% 
+                     neighbors = dplyr::n()) %>%
     zoo::na.trim(sides = "right") #trim trailing NAs
-  
-  #Initialize Final Series
-  finalseries <- interpolated_baro
-  
-  
-  #Give 5 or 15 minute data as appropriate
-  if(data_interval == "15 mins"){
-    clippedseries <- data.frame(dtime_est = seq.POSIXt(from = start_date, to = end_date + lubridate::days(1), by = data_interval) )
-    
-    finalseries <- dplyr::filter(finalseries, dtime_est %in% clippedseries$dtime_est)
-    baro <- dplyr::filter(baro, dtime_est %in% clippedseries$dtime_est)
-  }
-  
-  
-  #Adding "neighbor" counts and instances to report
-  neighbors <- dplyr::group_by(finalseries, neighbors) %>%
-    dplyr::summarize(count = dplyr::n()) %>%
-    magrittr::set_colnames(c("Neighbors", "Count"))
-  
-  ##finalseries is now ready, but return() must happen after plot and markdown are created
-  
-  #Baro Raster Plot
-  #Get elevations #This has been removed in favor of using distances to sort SMPs on plot. Code is left in case 
-  #baro_elev <- odbc::dbGetQuery(con, "SELECT * FROM smp_elev") %>% filter(smp_id %in% baro$smp_id)
-  
-  #currently disabled (2/2/21)
-  
-  # #Bind all raw baro data with interpolated data, and add weights
-  # baro_p <- dplyr::bind_rows(baro, finalseries)
-  # baro_p <- dplyr::left_join(baro_p, baro_weights, by = "smp_id") 
   # 
-  # #Set NA weights to max weight +1 so interpolated data plots at the top of the chart
-  # baro_p$weight[is.na(baro_p$weight)] <- max(baro_p$weight)+1
-  # 
-  # #Sort SMP IDs by elevation
-  # baro_p$smp_id <- factor(baro_p$smp_id, levels = unique(baro_p$smp_id[order(baro_p$weight)]))
-  # 
-  # #Add year and day for chart
-  # baro_p %<>% dplyr::mutate("day" = yday_decimal(baro_p$dtime_est),
-  #                    "year" = lubridate::year(baro_p$dtime_est))
+  # #Initialize Final Series
+  # finalseries <- interpolated_baro
   # 
   # 
-  # baro_p$smp_id %<>% as.factor
+  # #Give 5 or 15 minute data as appropriate
+  # if(data_interval == "15 mins"){
+  #   clippedseries <- data.frame(dtime_est = seq.POSIXt(from = start_date, to = end_date + lubridate::days(1), by = data_interval) )
+  #   
+  #   finalseries <- dplyr::filter(finalseries, dtime_est %in% clippedseries$dtime_est)
+  #   baro <- dplyr::filter(baro, dtime_est %in% clippedseries$dtime_est)
+  # }
   # 
-  # #Create baro Raster Chart
-  # p <- marsBaroRasterPlot(baro_p)
-  
-  
-  #Create baro Map
-  # baro_loc <- smp_loc %>% dplyr::filter(smp_id %in% baro$smp_id)
-  # rownames(baro_loc) <- NULL
-  # coords <- baro_loc[c("lon_wgs84", "lat_wgs84")]
-  # baro_sp <- sp::SpatialPointsDataFrame(coords, data = baro_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
-  # coords <- locus_loc[c("lon_wgs84", "lat_wgs84")]
-  # smp_sp <- sp::SpatialPointsDataFrame(coords, data = locus_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
-  # baro_map <- mapview::mapview(baro_sp, layer.name = "Baro") + mapview::mapview(smp_sp, color = "red", col.regions = NA, layer.name = "Target SMP")
   # 
-  downloader_folder <- "O:/Watershed Sciences/GSI Monitoring/07 Databases and Tracking Spreadsheets/13 MARS Analysis Database/Scripts/Downloader/Baro Data Downloader"
-  # downloader_folder_csv <- "\\\\\\\\pwdoows\\\\oows\\\\Watershed Sciences\\\\GSI Monitoring\\07 Databases and Tracking Spreadsheets\\13 MARS Analysis Database\\\\Scripts\\\\Downloader\\\\Baro Data Downloader\\\\"
+  # #Adding "neighbor" counts and instances to report
+  # neighbors <- dplyr::group_by(finalseries, neighbors) %>%
+  #   dplyr::summarize(count = dplyr::n()) %>%
+  #   magrittr::set_colnames(c("Neighbors", "Count"))
   # 
-  #render markdown document
-  #output file and output dir arguments do not work, so file is placed where markdown document is, and moved later
-  
-  #markdown is currently disabled
-  
-  # rmarkdown::render(system.file("rmd", "baro.rmd", package = "pwdgsi"), #find .rmd location on local cpu
-  #                   params = list(smp_id = target_id,  #input parameters to be passed into markdown body
-  #                                 start_date = start_date,
-  #                                 end_date = end_date,
-  #                                 data_interval = data_interval,
-  #                                 neighbors = neighbors,
-  #                                 countNAs = countNAs_t,
-  #                                 p = p,
-  #                                 map = baro_map,
-  #                                 baro_latest_dtime = baro_latest_dtime,
-  #                                 baro_latest_valid = baro_latest_valid))
-
-  # #give a new filename and path
-  # new_filename <- paste0(downloader_folder, "/Reports/", paste(target_id, start_date, "to", end_date, sep = "_"), "_baro_report.html")
+  # ##finalseries is now ready, but return() must happen after plot and markdown are created
   # 
-  # #move file to Baro Data Downloader/Reports folder
-  # file.rename(from = paste0(system.file("rmd", "baro.html", package = "pwdgsi")),
-  #             to = new_filename)
+  # #Baro Raster Plot
+  # #Get elevations #This has been removed in favor of using distances to sort SMPs on plot. Code is left in case 
+  # #baro_elev <- odbc::dbGetQuery(con, "SELECT * FROM smp_elev") %>% filter(smp_id %in% baro$smp_id)
   # 
-  # #open html
-  # browseURL(new_filename)
-  
-  #return Final Series. 
-  return(finalseries)
+  # #currently disabled (2/2/21)
+  # 
+  # # #Bind all raw baro data with interpolated data, and add weights
+  # # baro_p <- dplyr::bind_rows(baro, finalseries)
+  # # baro_p <- dplyr::left_join(baro_p, baro_weights, by = "smp_id") 
+  # # 
+  # # #Set NA weights to max weight +1 so interpolated data plots at the top of the chart
+  # # baro_p$weight[is.na(baro_p$weight)] <- max(baro_p$weight)+1
+  # # 
+  # # #Sort SMP IDs by elevation
+  # # baro_p$smp_id <- factor(baro_p$smp_id, levels = unique(baro_p$smp_id[order(baro_p$weight)]))
+  # # 
+  # # #Add year and day for chart
+  # # baro_p %<>% dplyr::mutate("day" = yday_decimal(baro_p$dtime_est),
+  # #                    "year" = lubridate::year(baro_p$dtime_est))
+  # # 
+  # # 
+  # # baro_p$smp_id %<>% as.factor
+  # # 
+  # # #Create baro Raster Chart
+  # # p <- marsBaroRasterPlot(baro_p)
+  # 
+  # 
+  # #Create baro Map
+  # # baro_loc <- smp_loc %>% dplyr::filter(smp_id %in% baro$smp_id)
+  # # rownames(baro_loc) <- NULL
+  # # coords <- baro_loc[c("lon_wgs84", "lat_wgs84")]
+  # # baro_sp <- sp::SpatialPointsDataFrame(coords, data = baro_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
+  # # coords <- locus_loc[c("lon_wgs84", "lat_wgs84")]
+  # # smp_sp <- sp::SpatialPointsDataFrame(coords, data = locus_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
+  # # baro_map <- mapview::mapview(baro_sp, layer.name = "Baro") + mapview::mapview(smp_sp, color = "red", col.regions = NA, layer.name = "Target SMP")
+  # # 
+  # downloader_folder <- "O:/Watershed Sciences/GSI Monitoring/07 Databases and Tracking Spreadsheets/13 MARS Analysis Database/Scripts/Downloader/Baro Data Downloader"
+  # # downloader_folder_csv <- "\\\\\\\\pwdoows\\\\oows\\\\Watershed Sciences\\\\GSI Monitoring\\07 Databases and Tracking Spreadsheets\\13 MARS Analysis Database\\\\Scripts\\\\Downloader\\\\Baro Data Downloader\\\\"
+  # # 
+  # #render markdown document
+  # #output file and output dir arguments do not work, so file is placed where markdown document is, and moved later
+  # 
+  # #markdown is currently disabled
+  # 
+  # # rmarkdown::render(system.file("rmd", "baro.rmd", package = "pwdgsi"), #find .rmd location on local cpu
+  # #                   params = list(smp_id = target_id,  #input parameters to be passed into markdown body
+  # #                                 start_date = start_date,
+  # #                                 end_date = end_date,
+  # #                                 data_interval = data_interval,
+  # #                                 neighbors = neighbors,
+  # #                                 countNAs = countNAs_t,
+  # #                                 p = p,
+  # #                                 map = baro_map,
+  # #                                 baro_latest_dtime = baro_latest_dtime,
+  # #                                 baro_latest_valid = baro_latest_valid))
+  # 
+  # # #give a new filename and path
+  # # new_filename <- paste0(downloader_folder, "/Reports/", paste(target_id, start_date, "to", end_date, sep = "_"), "_baro_report.html")
+  # # 
+  # # #move file to Baro Data Downloader/Reports folder
+  # # file.rename(from = paste0(system.file("rmd", "baro.html", package = "pwdgsi")),
+  # #             to = new_filename)
+  # # 
+  # # #open html
+  # # browseURL(new_filename)
+  # 
+  # #return Final Series. 
+  # return(finalseries)
   
 }
 
