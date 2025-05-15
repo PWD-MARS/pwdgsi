@@ -846,40 +846,42 @@ marsFetchSMPSnapshot <- function(con, smp_id, ow_suffix, request_date){
 #' 
 marsFetchLevelData <- function(con, target_id, ow_suffix, start_date, end_date, sump_correct){
   # Check DB connection
-  if(!odbc::dbIsValid(con)){
+  if(!DBI::dbIsValid(con)){
     stop("Argument 'con' is not an open ODBC channel")
   }
   
   
-  #1.2 Check if smp_id and ow_suffix are in the MARS table "ow_validity"
+  #Check if smp_id and ow_suffix are in the MARS table "ow_validity"
   # Return match
   validity_query <- paste0("select * from fieldwork.fun_get_ow_uid('",target_id,"','",ow_suffix,"', NULL)")
-  ow_uid <- odbc::dbGetQuery(con, validity_query)
+  ow_uid <- DBI::dbGetQuery(con, validity_query)
   
-  # #1.3 check if data exists in viw will have a sump. Change sump_correct to FALSE if necessary
-  # 
-  # 
-  # #1.4 Pick which table to query
-  # if(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")){
-  #   level_table <- "data.tbl_gw_depthdata_raw"
-  # }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == TRUE){
-  #   level_table <- "data.viw_ow_leveldata_sumpcorrected"
-  # }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == FALSE){
-  #   level_table <- "data.tbl_ow_leveldata_raw"
-  # }
-  # start_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  # end_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  # 
-  # #1.5 Add buffer to requested dates
-  # start_date <- lubridate::round_date(start_date) - lubridate::days(1)
-  # end_date <- lubridate::round_date(end_date) + lubridate::days(1)
-  # 
-  # #2 Query database for level data
-  # leveldata_query <- paste0("select * from ", level_table, "
-  #                               WHERE ow_uid = '", ow_uid, "'
-  #                               AND dtime_est BETWEEN '",start_date,"' AND '", end_date, "'")
-  # 
-  # leveldata <- odbc::dbGetQuery(con, leveldata_query) %>% dplyr::arrange(dtime_est)
+  # Select query table
+  #### This needs to be reworked/simplified with str_detect and only one else if
+  #### Can we get rid of PZ because it doesnt' seem to exist in ow_prefixes
+  #### This replace gets rid of the number at the end. It should be just letters before number?
+  if(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")){
+    level_table <- "data.tbl_gw_depthdata_raw"
+  }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == TRUE){
+    level_table <- "data.viw_ow_leveldata_sumpcorrected"
+  }else if(!(stringr::str_replace(ow_suffix, ".$", "") %in% c("CW", "GW", "PZ")) & sump_correct == FALSE){
+    level_table <- "data.tbl_ow_leveldata_raw"
+  }
+  # Make sure dates are POSIXct types
+  start_date %<>% as.POSIXct(format = '%Y-%m-%d')
+  end_date %<>% as.POSIXct(format = '%Y-%m-%d')
+
+  # Add buffer to requested dates based on DB time zone
+  start_date <- lubridate::round_date(start_date) - lubridate::days(1)
+  end_date <- lubridate::round_date(end_date) + lubridate::days(1)
+
+  # Query database for level data
+  leveldata_query <- paste0("SELECT * FROM ", level_table, " WHERE ow_uid = '", ow_uid,
+  "' AND dtime BETWEEN '", start_date,"' AND '", end_date, "'")
+
+  leveldata <- DBI::dbGetQuery(con, leveldata_query) %>% dplyr::arrange(dtime) 
+  leveldata <- leveldata |> 
+    dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
   # 
   # leveldata$dtime_est %<>% lubridate::force_tz(tz = "EST") %>% lubridate::round_date("minute")
   # 
