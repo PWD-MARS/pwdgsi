@@ -3,23 +3,23 @@
 # modified by Katie Swanson 2/4/2019) returns a dataset of event IDs for a rainfall time
 # series. Additional edits after review from Taylor Heffernan by Tim Adams and Katie Swanson (3/4/2019)
 #
-# IN: dtime_est A vector of POSIXct date times, in ascending order
-# IN: rainfall_in Rainfall depths during periods corresponding to times in  dtime_est, in inches
+# IN: dtime A vector of POSIXct date times, in ascending order
+# IN: rainfall_in Rainfall depths during periods corresponding to times in  dtime, in inches
 # IN: iet_hr Interevent time, in hours
 # IN: mindepth_in Minimum depth of a given event, in inches
-# OUT: A vector of integers the same length as dtime_est, which represents the event ID for that time step.
+# OUT: A vector of integers the same length as dtime, which represents the event ID for that time step.
 
 # roxygen
 #' Identify individual rainfall events
 #'
 #' Return a dataset of rainfall event IDs for a time period
 #'
-#' @param dtime_est vector, POSIXct date times
-#' @param rainfall_in vector, num, of rainfall depths corresponding to \code{dtime_est}, in inches
+#' @param dtime vector, POSIXct date times
+#' @param rainfall_in vector, num, of rainfall depths corresponding to \code{dtime}, in inches
 #' @param iet_hr num, Interevent time, in hours. The default is 6 hours.
 #' @param mindepth_in num, minimum depth of a given event, in inches. The default is 0.10 inches.
 #'
-#' @return Output will be a vector of integers corresponding to \code{dtime_est} and representing
+#' @return Output will be a vector of integers corresponding to \code{dtime} and representing
 #'   the event ID for each time step.
 #'   
 #' @details Function should be used inside \code{\link[dplyr]{mutate}} to add output to the corresponding table.    
@@ -32,63 +32,63 @@
 #'   rainfall_in = marsSampleRain$rainfall_in, 
 #'   iet_hr = 6, mindepth_in = 0.10))
 
-marsDetectEvents <- function(dtime_est, rainfall_in, 
-                         #DEFAULT VALUES
+marsDetectEvents <- function(dtime, rainfall_in, 
                          iet_hr = 6, mindepth_in = 0.10) {
   
-  # 1. QC checks
-  # 1.1 Check for non-zero and negative rainfall values
+  # Check for non-zero and negative rainfall values
   if(!all(rainfall_in > 0)) {
     stop("All rainfall data must be greater than 0.")
   }
 
-  # 1.2 Check that datetime is in ascending order
-  if(!identical(order(dtime_est), 1:length(dtime_est))) {
+  # Check that datetime is in ascending order
+  if(!identical(order(dtime), 1:length(dtime))) {
     stop("Datetime data is not sorted in ascending order.")
   }
 
-  # 1.3 Check for duplicated data
-  if(!all(!duplicated(dtime_est))) {
+  # Check for duplicated data
+  if(!all(!duplicated(dtime))) {
     stop("Datetime data cannot contain duplicates.")
   }
-
-  # 1.4 Check that datetime is in correct format
-  if(!(class(dtime_est)[1] == "POSIXct")) {
+  
+  # Check that datetime is in correct format
+  if(!(class(dtime)[1] == "POSIXct")) {
     stop("Datetime data must be of class POSIXct.")
   }
-
-  # 1.5 Check to make sure paired data matches
-  if(!(length(dtime_est) == length(rainfall_in))) {
-    stop("dtime_est and rainfall_in must be the same length")
+  #### So this should always match up beforehand?
+  # Check to make sure paired data matches
+  if(!(length(dtime) == length(rainfall_in))) {
+    stop("dtime and rainfall_in must be the same length")
   }
-  
+  #### Should this be an argument?
   # Assumed interval
   interval_sec <- 15 * 60
   
-  # 2. Process rainfall data
-  prepseries <- tibble::tibble(dtime = dtime_est,
+  #### Why do we change the names? Should we ask for individual vectors or a df so we don't need this step?
+  # Process rainfall data
+  prepseries <- tibble::tibble(dtime = dtime,
                             rf_in = rainfall_in) %>%
     dplyr::mutate(lag_time = dplyr::lag(dtime, 1, default = dplyr::first(dtime) - interval_sec)) %>%
     dplyr::mutate(gap_hr = difftime(dtime, lag_time, units = "hours"))
 
   min_interval <- min(prepseries$gap_hr, na.rm = TRUE)
-  
-  # 3. Identify events
 
-  # 3.1 Initialize column
+  # Identify events
+  #### We're filling this column with 0s?
+  # Initialize column
   prepseries$start <- 0
 
-  # 3.2 Check whether first measurement in row 1 is included in following event
+  # Check whether first measurement in row 1 is included in following event
   prepseries$start[1] <- ifelse(prepseries$gap_hr[2] < iet_hr, 1, 0)
 
-  # 3.3 Identify beginning of new events
+
+  # Indicate the beginning of new events with a 1
   prepseries$start[prepseries$gap_hr >= iet_hr + min_interval] <- 1
 
-  # 3.4 Generate series of new events
+  # Generate series of new events
   prepseries <- prepseries %>%
     dplyr::mutate(event = cumsum(start))
 
-  # 3.5 Identify events that are less than the min_depth
+  # Identify events that are greater than the minimum event threshold
   prepsums <- prepseries %>%
     dplyr::group_by(event) %>%
     dplyr::summarize(total_in = sum(rf_in)) %>%
@@ -101,7 +101,7 @@ marsDetectEvents <- function(dtime_est, rainfall_in,
   # 3.6 Join event summary to rainfall data
   output <- prepseries %>%
     dplyr::left_join(prepsums, by = "event") %>%
-    dplyr::select(dtime_est = dtime,
+    dplyr::select(dtime,
            rainfall_in = rf_in,
            event_id)
 
