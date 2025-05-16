@@ -128,8 +128,6 @@ NULL
 #'
 #' @param rainfall_in vector, num, rainfall depth in inches representing a single rain event
 #'
-#' @param dtime_est vector, POSIXct date times representing a single rain event
-#'
 #' @return \describe{
 #'        \item{\code{marsStormDepth_in}}{Output will be total rainfall depth for the event, in inches.}
 #' }
@@ -155,12 +153,12 @@ NULL
  
 
 marsStormDepth_in <- function(rainfall_in) {
-
+  # Return NA if rainfall_in is zero
   if(length(rainfall_in) == 0){
     return(NA)
   }
 
-  # 1. QC checks
+  # QC checks
   if(!all(rainfall_in > 0)) {
     stop("All rainfall data must be greater than 0.")
   }
