@@ -40,6 +40,7 @@ pool::poolClose(conn_sand)
 
 new_mars <- marsDetectEvents(new_rain$dtime, new_rain$rainfall_in)
 
+# Adding a missing observation from old that is 00:00:00 so the vectors are the same size for comparison
 old_mars_match <- append(old_mars, NA) 
 
 # One is missing from the last storm, which had a 00:00:00 timestamp

@@ -170,45 +170,47 @@ marsStormDepth_in <- function(rainfall_in) {
 # marsStormDuration ------------------
 # NOTES: Function to export storm duration from events processed using marsDetectEvents function
 
-#IN: A vector of times at which rainfall was collected in the storm
+#IN: A vector of times at which rainfall was collected in the storm for a single storm
 #OUT: The total rainfall duration, in hours
 
 #' @rdname storm
 #'
+#' @param dtime vector of POSIXct datetimes 
 #' @return \describe{
 #'        \item{\code{marsStormDuration_hr}}{Output will be a double with the duration of the event, in hours.}
 #' }
 #'
 #' @export
 
-marsStormDuration_hr <- function(dtime_est) {
-
-  if(length(dtime_est) == 0){
+marsStormDuration_hr <- function(dtime) {
+  # Return NA if dtime vector has no values
+  if(length(dtime) == 0){
     return(NA)
   }
 
-  # 1. QC checks
-  if(!identical(order(dtime_est), 1:length(dtime_est))) {
+  # Make sure 
+  if(!identical(order(dtime), 1:length(dtime))) {
     stop("Datetime data is not sorted in ascending order.")
   }
-
-  if(!all(!duplicated(dtime_est))) {
+  
+  identical(order(dtime), 1:length(dtime))
+  if(!all(!duplicated(dtime))) {
     stop("Datetime data can not contain duplicates.")
   }
 
-  if(!(class(dtime_est)[1] == "POSIXct")) {
+  if(!(class(dtime)[1] == "POSIXct")) {
     stop("Datetime data must be of class POSIXct.")
   }
 
   # 2. Calculate storm duration
-  event_start <- dtime_est[1]
-  #Notes: Assumes 15-minute time increments. As written, code should 
+  event_start <- dtime[1]
+  #Notes: Assumes 15-minute time increments. As written, code should
   #only be applied to ONE EVENT at a time
 
-  duration_calc <- difftime(dtime_est[length(dtime_est)], event_start, units = "hours")
-  duration <- as.double(duration_calc) + 0.25 
+  duration_calc <- difftime(dtime[length(dtime)], event_start, units = "hours")
+  duration <- as.double(duration_calc) + 0.25
   #15-minutes added to account for time subtraction
-  
+
   return(round(as.double(duration), 4))
 }
 
