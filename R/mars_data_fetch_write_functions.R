@@ -917,10 +917,9 @@ marsFetchLevelData <- function(con, target_id, ow_suffix, start_date, end_date, 
 #' @seealso \code{\link{marsFetchRainfallData}}, \code{\link{marsFetchLevelData}}, \code{\link{marsFetchMonitoringData}}
 #' 
 marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), start_date, end_date){
-  #1 Argument validation
-  #1.1 Check database connection
-  if(!odbc::dbIsValid(con)){
-    stop("Argument 'con' is not an open ODBC channel")
+  # Check database connection
+  if(!DBI::dbIsValid(con)){
+    stop("Argument 'con' is not an open database connection")
   }
   
   #Sanitize start and end date
@@ -928,11 +927,11 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
   end_date %<>% as.POSIXct(format = '%Y-%m-%d')
   
   # Was a string supplied to source?
-  if( isTRUE(all.equal(source, c("gage","radar"))) ){
+  if(isTRUE(all.equal(source, c("gage","radar")))){
     stop("No argument supplied for 'source'. Provide a string of either 'gage' or 'radar'")
   }
   
-  #Are we working with gages or radarcells?
+  # Are we working with gages or radarcells?
   if(source == "gage" | source == "gauge"){
     rainparams <- data.frame(smptable = "admin.tbl_smp_gage", eventtable = "data.tbl_gage_event", uidvar = "gage_uid", loctable = "admin.tbl_gage", eventuidvar = "gage_event_uid", stringsAsFactors=FALSE)
   } else if(source == "radar"){
@@ -942,26 +941,26 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
   }
   
   
-  #2 Get closest rain source
+  # Get closest rain source
   rainsource <- odbc::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$smptable)) %>% 
     dplyr::filter(smp_id == target_id) %>%
     dplyr::pull(rainparams$uidvar)
   
-  #2.1 Query event data
+  # Query event data
   event_query <- paste(paste0("SELECT * FROM ", rainparams$eventtable),
                        "WHERE", rainparams$uidvar, "= CAST('", rainsource, "' as int)",
-                       "AND eventdatastart_edt >= Date('", start_date, "')",
-                       "AND eventdataend_edt <= Date('", end_date + lubridate::days(1), "');")
+                       "AND eventdatastart >= Date('", start_date, "')",
+                       "AND eventdataend <= Date('", end_date + lubridate::days(1), "');")
   
   events <- odbc::dbGetQuery(con, event_query) 
-  # making this "EST"
-  events %<>% dplyr::mutate(eventdatastart_est = lubridate::force_tz(eventdatastart_edt,"EST"))
-  events %<>% dplyr::mutate(eventdataend_est = lubridate::force_tz(eventdataend_edt,"EST"))
-  events %<>% dplyr::select(-eventdatastart_edt,
-                     -eventdataend_edt)
-  
-  #3 return event data
-  return(events)
+  # # making this "EST"
+  # events %<>% dplyr::mutate(eventdatastart_est = lubridate::force_tz(eventdatastart_edt,"EST"))
+  # events %<>% dplyr::mutate(eventdataend_est = lubridate::force_tz(eventdataend_edt,"EST"))
+  # events %<>% dplyr::select(-eventdatastart_edt,
+  #                    -eventdataend_edt)
+  # 
+  # #3 return event data
+  # return(events)
 }
 
 # marsFetchMonitoringData --------------------------------
@@ -980,7 +979,7 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
 #' @param rain_events logical, TRUE if rain event data should be included in result
 #' @param rainfall logical, TRUE if rainfall data should be included in result
 #' @param level logical, TRUE if water level should be included in result
-#' @param daylight_savings logical, Adjust for daylight savings time? when doing QAQC this should be FALSE because the water level data does not spring forward 
+#' @param daylight_savings logical, WILL NOT WORK in current version 
 #' @param debug logical, whether to print lookup times and outputs
 #'
 #' @return Output will be a list consisting of a combination of the following:
@@ -998,19 +997,14 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
 marsFetchMonitoringData <- function(con, target_id, ow_suffix, source = c("gage", "radar"), start_date, end_date,
                                     sump_correct = TRUE, rain_events = TRUE, rainfall = TRUE, level = TRUE, daylight_savings = FALSE,
                                     debug = FALSE){
-
-  # if(browser == TRUE){
-  #   browser()
-  # }
   
-  #1 Argument validation
-  #1.1 Check database connection
-  if(!odbc::dbIsValid(con)){
-    stop("Argument 'con' is not an open ODBC channel")
+  # Check database connection
+  if(!DBI::dbIsValid(con)){
+    stop("Argument 'con' is not an open database connection")
   }
   
   # Was a string supplied to source?
-  if( isTRUE(all.equal(source, c("gage","radar"))) ){
+  if(isTRUE(all.equal(source, c("gage","radar")))){
     stop("No argument supplied for 'source'. Provide a string of either 'gage/gauge' or 'radar'")
   }
   
