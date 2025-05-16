@@ -10,7 +10,6 @@ conn_old <- dbPool(
   password = Sys.getenv("shiny_pwd"),
   timezone = NULL)
 
-# Pull datetime values and rainfall
 old_rain_q <- "SELECT dtime_edt, rainfall_in FROM data.tbl_gage_rain WHERE gage_uid = 17 
 AND dtime_edt BETWEEN '2024-03-02 05:00:00' AND '2024-03-02 15:00:00'"
 
