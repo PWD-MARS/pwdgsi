@@ -218,11 +218,12 @@ marsStormDuration_hr <- function(dtime) {
 # marsStormPeakIntensity -----------------------------
 # NOTES: Function to export storm peak intensity from events processed using marsDetectEvents function
 #
-# IN:dtime_est A vector of times at which rainfall was collected in the storm
 # IN:  rainfall_in The depth of water that fell at each time, in inches
 # OUT:  The peak intensity, in inches per hour
 
 #' @rdname storm
+
+#' @param rainfall_in a vector of rainfall, in inches, for a given storm
 #'
 #' @return \describe{
 #'        \item{\code{marsStormPeakIntensity_inhr}}{Output will be a number representing the event's peak intensity in inches/hour.}
@@ -230,41 +231,20 @@ marsStormDuration_hr <- function(dtime) {
 #'
 #' @export
 
-marsStormPeakIntensity_inhr <- function(dtime_est, rainfall_in) {
-
-  if(length(dtime_est) == 0 | length(rainfall_in) == 0){
+marsStormPeakIntensity_inhr <- function(rainfall_in) {
+  # If length of rainfall_in argument is zero, return NA
+  if(length(rainfall_in) == 0){
     return(NA)
   }
 
-  # 1. QC checks
   if(!all(rainfall_in > 0)) {
     stop("All rainfall data must be greater than 0")
   }
-
-  if(!(identical(order(dtime_est), 1:length(dtime_est)))) {
-    stop("Datetime data is not sorted in ascending order")
-  }
-
-  if(!all(!duplicated(dtime_est))) {
-    stop("Datetime data can not contain duplicates")
-  }
-
-  if(!(class(dtime_est)[1] == "POSIXct")) {
-    stop("Datetime data must be of class POSIXct")
-  }
-
-  if(!(length(dtime_est) == length(rainfall_in))) {
-    stop("dtime_est and rainfall_in must be the same length")
-  }
-
-  # Alert user if event only contains one measurement 
-  if(length(dtime_est) == 1){
-    message("Datetime data only contains one measurement.")
-  }
+  
+  # Multiplier to convert interval from 15min intervals to hours
   mult <- 4
   
-  # 3. Calculate peak intensity
-  # Assumes that the interval is 15 minutes.
+  # Calculate peak intensity for a given hour
   maximum <- max(rainfall_in)
   peak <- maximum * mult
 
