@@ -11,7 +11,7 @@ conn_old <- dbPool(
   timezone = NULL)
 
 # Current production db
-old_mars <- old_events(con = conn_old, 
+old_mars <- old_fetchEvents(con = conn_old, 
                      target_id = "1267-2-1",
                      source = "gage",
                      start_date = "2024-03-01",
@@ -37,5 +37,7 @@ new_mars <- marsFetchRainEventData(con = conn_sand,
 poolClose(conn_sand)
 
 old_mars1 <- old_mars |>
-  dplyr::rename(eventdatastart = eventdatastart_edt,
-                eventdataend =  eventdataend_edt)
+  dplyr::rename(eventdatastart = eventdatastart_est,
+                eventdataend =  eventdataend_est)
+# diff between the two is because one 00:00:00 is missing from the old dataset :(
+diffs <- dplyr::symdiff(new_mars, old_mars1)

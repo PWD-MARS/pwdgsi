@@ -114,109 +114,8 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
     }
     stop("There is no data in the database for this date range.")
   }
-  # Make sure rainfall is numeric?
-  rain_temp$rainfall_in %<>% as.numeric
   # Return rainfall
   rain_temp
-  # 
-  # rain_temp <- rain_temp |>
-  #   dplyr::mutate(dtime =  lubridate::force_tz(dtime, tz = "America/New_York"))
-  # # # we need to reformat dates at midnight because ymd_hms does not know how to handle them
-  # # # this is actually a base R issue, but it yyis still dumb
-  # # # https://github.com/tidyverse/lubridate/issues/1124
-  # # #Apparently, attempting to set the time zone on a datetime that falls squarely on the spring forward datetime
-  # # #Such as 2005-04-03 02:00:00
-  # # #Returns NA, because the time is impossible.
-  # # #I hate this so, so much
-  # # #To mitigate this, we will strip NA values from the new object
-  # # # rain_temp %<>% dplyr::filter(!is.na(dtime_edt)) %>% dplyr::arrange(dtime_edt)
-  # rain_temp <- rain_temp |>
-  #   dplyr::filter(!is.na(dtime)) %>% dplyr::arrange(dtime)
-  
-  #Our water level data is not corrected for daylight savings time. ie it doesn't spring forwards
-  #So we must shift back any datetimes within the DST window
-  #Thankfully, the dst() function returns TRUE if a dtime is within that zone
-  # if(daylightsavings == FALSE){
-  #   dst_index <- lubridate::dst(rain_temp$dtime_edt)
-  #   rain_temp$dtime_edt %<>% lubridate::force_tz("EST") #Assign new TZ without changing dates
-  #   rain_temp$dtime_edt[dst_index] <- rain_temp$dtime_edt[dst_index] - lubridate::hours(1)
-  # }
-  # 
-  # #Punctuate data with zeroes to prevent linear interpolation when plotting
-  # #If the time between data points A and B is greater than 15 minutes (the normal timestep), we must insert a zero 15 minutes after A
-  # #If its greather than 30 minutes, we must insert a zero 15 minutes before B also
-  # 
-  # #First, create data frame to contain zero fills with same column names as our rain data
-  # zeroFills <- rain_temp[0,]
-  # #print("Begin zero-filling process")
-  # for(i in 1:(nrow(rain_temp) - 1)){
-  #   # k <- difftime(rain_temp$dtime_edt[i+1], rain_temp$dtime_edt[i], units = "min")
-  #   k <- difftime(rain_temp$dtime[i+1], rain_temp$dtime[i], units = "min")
-  #   
-  #   #If gap is > 15 mins, put a zero 15 minutes after the gap starts
-  #   if(k > 15){
-  #     
-  #     
-  #     zeroFillIndex <- nrow(zeroFills)+1
-  #     
-  #     #Boundaries of the interval to be zeroed
-  #     boundary.low <- rain_temp$dtime[i]
-  #     boundary.high <- rain_temp$dtime[i+1]
-  #     # boundary.low <- rain_temp$dtime_edt[i]
-  #     # boundary.high <- rain_temp$dtime_edt[i+1]
-  #     
-  #     #The zero goes 15 minutes (900 seconds) after the first boundary
-  #     #Filled by index because R is weird about partially filled data frame rows
-  #     fill <- boundary.low + lubridate::seconds(900)
-  #     #these were causing several functions to crash. Need a way to index so this doesn't happen again.
-  #     zeroFills[zeroFillIndex, 5] <- fill                   #dtime_edt
-  #     zeroFills[zeroFillIndex, 3] <- 0                      #rainfall_in
-  #     zeroFills[zeroFillIndex, 2] <- rainsource   #gage_uid or radarcell_uid
-  #     # browser()
-  #     # print(paste("Gap-filling event ID. Before:", rain_temp$event[i], "After:", rain_temp$event[i+1]))
-  #     zeroFills[zeroFillIndex, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
-  #     
-  #     #If the boundary is longer than 30 minutes, we need a second zero
-  #     if(k > 30){
-  #       
-  #       #This zero goes 15 minutes before the upper boundary
-  #       fill <- boundary.high - lubridate::seconds(900)
-  #       zeroFills[zeroFillIndex + 1, 2] <- fill                   #dtime_edt
-  #       zeroFills[zeroFillIndex + 1, 4] <- 0                      #rainfall_in
-  #       zeroFills[zeroFillIndex + 1, 3] <- rainsource   #gage_uid or radarcell_uid
-  #       
-  #       #print(paste("Gap-filling event ID. Before:", rain_temp[i, 5], "After:", rain_temp[i+1, 5]))
-  #       zeroFills[zeroFillIndex + 1, 5] <- marsGapFillEventID(event_low = rain_temp[i, 5], event_high = rain_temp[i+1, 5]) #event
-  #       
-  #     }
-  #     
-  #   }
-  # }
-  #### No including because this causes more issues than it should
-  # #Replace UIDs with SMP IDs
-  # rainlocs <- DBI::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$loctable))
-  # finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
-  #   dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
-  #   dplyr::select(dtime_edt, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
-  #   dplyr::arrange(dtime_edt)
-  # finalseries <- dplyr::bind_rows(rain_temp, zeroFills) %>%
-  #   dplyr::left_join(rainlocs, by = rainparams$uidvar) %>%
-  #   dplyr::select(dtime, rainfall_in, rainparams$uidvar, rainparams$eventuidvar) %>%
-  #   dplyr::arrange(dtime)
-  # 
-  # #round date to nearest minute
-  # rain_temp <- rain_temp |>
-  #   dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
-  # 
-  # #Rename dtime column if we are undoing daylight savings time
-  # # if(daylightsavings == FALSE){
-  # #   finalseries <- finalseries %>%
-  # #     dplyr::mutate(dtime_est = dtime_edt) %>%
-  # #     dplyr::select(-dtime_edt)
-  # #   finalseries <- dplyr::select(finalseries, dtime_est, rainfall_in, rainparams$uidvar, rainparams$eventuidvar)
-  # # }
-  # 
-  # return(finalseries)
 }
 
 # marsGapFillEventID -----------------------
@@ -858,7 +757,7 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
                        "AND eventdatastart >= Date('", start_date, "')",
                        "AND eventdataend <= Date('", end_date + lubridate::days(1), "');")
   
-  events <- odbc::dbGetQuery(con, event_query) 
+  events <- DBI::dbGetQuery(con, event_query) 
 }
 
 # marsFetchMonitoringData --------------------------------

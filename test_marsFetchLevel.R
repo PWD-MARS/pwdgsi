@@ -45,7 +45,7 @@ old_mars1 <- old_mars |>
   dplyr::mutate(dtime = lubridate::with_tz(dtime, tzone = "America/New_York"))
 
 # Diffs show only 4/1 days that are likely due to requesting in EST and then coverting to America/New_York
-diffs <- dplyr::symdiff(new_mars |> dplyr::select(dtime, level_ft, smp_id), old_mars1 |> dplyr::select(dtime, level_ft, smp_id))
+diffs <- dplyr::symdiff(new_mars1 |> dplyr::select(dtime, level_ft, smp_id), old_mars1 |> dplyr::select(dtime, level_ft, smp_id))
 
 # Test fall back in November
 conn_old <- dbPool(
