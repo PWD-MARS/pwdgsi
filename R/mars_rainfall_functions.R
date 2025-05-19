@@ -122,8 +122,6 @@ marsDetectEvents <- function(dtime, rainfall_in,
 #'
 #'
 #' @name storm
-NULL
-
 #' @rdname storm
 #'
 #' @param rainfall_in vector, num, rainfall depth in inches representing a single rain event
@@ -158,12 +156,12 @@ marsStormDepth_in <- function(rainfall_in) {
     return(NA)
   }
 
-  # QC checks
+  # Validatie all rainfall is > 0
   if(!all(rainfall_in > 0)) {
     stop("All rainfall data must be greater than 0.")
   }
 
-  # 2. Calculate stormDepth
+  # Calculate stormDepth
   return(sum(rainfall_in))
 }
 
@@ -236,7 +234,7 @@ marsStormPeakIntensity_inhr <- function(rainfall_in) {
   if(length(rainfall_in) == 0){
     return(NA)
   }
-
+  # Validate all rainfall obs are > 0
   if(!all(rainfall_in > 0)) {
     stop("All rainfall data must be greater than 0")
   }
@@ -260,25 +258,27 @@ marsStormPeakIntensity_inhr <- function(rainfall_in) {
 
 #' @rdname storm
 #'
+#' @param dtime Vector of datetimes for a given storm
+#' @param rainfall_in Vector of rainfall_in for a given storm (in inches)
 #' @return \describe{
 #'        \item{\code{marsStormAverageIntensity_inhr}}{Output will be a number representing the event's average intensity in inches/hour.}
 #' }
 #'
 #' @export
 
-marsStormAverageIntensity_inhr <- function(dtime_est, rainfall_in) {
+marsStormAverageIntensity_inhr <- function(dtime, rainfall_in) {
 
-  if(length(dtime_est) == 0 | length(rainfall_in) == 0){
+  if(length(dtime) == 0 | length(rainfall_in) == 0){
     return(NA)
   }
 
   # 1. QC check (all others covered in called functions)
-  if(!(length(dtime_est) == length(rainfall_in))) {
+  if(!(length(dtime) == length(rainfall_in))) {
     stop("dtime_est and rainfall_in must be the same length")
   }
 
   # 2. Calculate average intensity
-  result <- marsStormDepth_in(rainfall_in) / marsStormDuration_hr(dtime_est)
+  result <- marsStormDepth_in(rainfall_in) / marsStormDuration_hr(dtime)
   return(round(result, 4))
 }
 
