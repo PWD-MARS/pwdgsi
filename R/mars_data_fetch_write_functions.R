@@ -418,7 +418,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
 
     #Pad installs 5 minute intervals in our 15 minute dtime_est column. All other columns become NA
     #End value is 10 minutes after the final period because that 15 minute data point is good for 10 more minutes
-    baro_pad <- padr::pad(baro, start_val = min(baro$dtimet), end_val = max(baro$dtime) + lubridate::minutes(10), interval = "5 mins")
+    baro_pad <- padr::pad(baro, start_val = min(baro$dtime), end_val = max(baro$dtime) + lubridate::minutes(10), interval = "5 mins")
 
     #To count the LOCF operations, we count the NAs in the data frame before and after the LOCF
     countNAs <- baro_pad[1,]
@@ -452,95 +452,6 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
                      smp_id =  "Interpolated",
                      neighbors = dplyr::n()) %>%
     zoo::na.trim(sides = "right") #trim trailing NAs
-
-  # #Initialize Final Series
-  # finalseries <- interpolated_baro
-
-
-  # #Give 5 or 15 minute data as appropriate
-  # if(data_interval == "15 mins"){
-  #   clippedseries <- data.frame(dtime_est = seq.POSIXt(from = start_date, to = end_date + lubridate::days(1), by = data_interval) )
-  # 
-  #   finalseries <- dplyr::filter(finalseries, dtime_est %in% clippedseries$dtime_est)
-  #   baro <- dplyr::filter(baro, dtime_est %in% clippedseries$dtime_est)
-  # }
-
-  # 
-  # #Adding "neighbor" counts and instances to report
-  # neighbors <- dplyr::group_by(finalseries, neighbors) %>%
-  #   dplyr::summarize(count = dplyr::n()) %>%
-  #   magrittr::set_colnames(c("Neighbors", "Count"))
-  # 
-  # ##finalseries is now ready, but return() must happen after plot and markdown are created
-  # 
-  # #Baro Raster Plot
-  # #Get elevations #This has been removed in favor of using distances to sort SMPs on plot. Code is left in case 
-  # #baro_elev <- odbc::dbGetQuery(con, "SELECT * FROM smp_elev") %>% filter(smp_id %in% baro$smp_id)
-  # 
-  # #currently disabled (2/2/21)
-  # 
-  # # #Bind all raw baro data with interpolated data, and add weights
-  # # baro_p <- dplyr::bind_rows(baro, finalseries)
-  # # baro_p <- dplyr::left_join(baro_p, baro_weights, by = "smp_id") 
-  # # 
-  # # #Set NA weights to max weight +1 so interpolated data plots at the top of the chart
-  # # baro_p$weight[is.na(baro_p$weight)] <- max(baro_p$weight)+1
-  # # 
-  # # #Sort SMP IDs by elevation
-  # # baro_p$smp_id <- factor(baro_p$smp_id, levels = unique(baro_p$smp_id[order(baro_p$weight)]))
-  # # 
-  # # #Add year and day for chart
-  # # baro_p %<>% dplyr::mutate("day" = yday_decimal(baro_p$dtime_est),
-  # #                    "year" = lubridate::year(baro_p$dtime_est))
-  # # 
-  # # 
-  # # baro_p$smp_id %<>% as.factor
-  # # 
-  # # #Create baro Raster Chart
-  # # p <- marsBaroRasterPlot(baro_p)
-  # 
-  # 
-  # #Create baro Map
-  # # baro_loc <- smp_loc %>% dplyr::filter(smp_id %in% baro$smp_id)
-  # # rownames(baro_loc) <- NULL
-  # # coords <- baro_loc[c("lon_wgs84", "lat_wgs84")]
-  # # baro_sp <- sp::SpatialPointsDataFrame(coords, data = baro_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
-  # # coords <- locus_loc[c("lon_wgs84", "lat_wgs84")]
-  # # smp_sp <- sp::SpatialPointsDataFrame(coords, data = locus_loc, proj4string = sp::CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
-  # # baro_map <- mapview::mapview(baro_sp, layer.name = "Baro") + mapview::mapview(smp_sp, color = "red", col.regions = NA, layer.name = "Target SMP")
-  # # 
-  # downloader_folder <- "O:/Watershed Sciences/GSI Monitoring/07 Databases and Tracking Spreadsheets/13 MARS Analysis Database/Scripts/Downloader/Baro Data Downloader"
-  # # downloader_folder_csv <- "\\\\\\\\pwdoows\\\\oows\\\\Watershed Sciences\\\\GSI Monitoring\\07 Databases and Tracking Spreadsheets\\13 MARS Analysis Database\\\\Scripts\\\\Downloader\\\\Baro Data Downloader\\\\"
-  # # 
-  # #render markdown document
-  # #output file and output dir arguments do not work, so file is placed where markdown document is, and moved later
-  # 
-  # #markdown is currently disabled
-  # 
-  # # rmarkdown::render(system.file("rmd", "baro.rmd", package = "pwdgsi"), #find .rmd location on local cpu
-  # #                   params = list(smp_id = target_id,  #input parameters to be passed into markdown body
-  # #                                 start_date = start_date,
-  # #                                 end_date = end_date,
-  # #                                 data_interval = data_interval,
-  # #                                 neighbors = neighbors,
-  # #                                 countNAs = countNAs_t,
-  # #                                 p = p,
-  # #                                 map = baro_map,
-  # #                                 baro_latest_dtime = baro_latest_dtime,
-  # #                                 baro_latest_valid = baro_latest_valid))
-  # 
-  # # #give a new filename and path
-  # # new_filename <- paste0(downloader_folder, "/Reports/", paste(target_id, start_date, "to", end_date, sep = "_"), "_baro_report.html")
-  # # 
-  # # #move file to Baro Data Downloader/Reports folder
-  # # file.rename(from = paste0(system.file("rmd", "baro.html", package = "pwdgsi")),
-  # #             to = new_filename)
-  # # 
-  # # #open html
-  # # browseURL(new_filename)
-  # 
-  # #return Final Series. 
-  # return(finalseries)
   
 }
 
@@ -882,11 +793,6 @@ marsFetchLevelData <- function(con, target_id, ow_suffix, start_date, end_date, 
   leveldata <- DBI::dbGetQuery(con, leveldata_query) %>% dplyr::arrange(dtime) 
   leveldata <- leveldata |> 
     dplyr::mutate(dtime = lubridate::round_date(dtime, "minute"))
-  # 
-  # leveldata$dtime_est %<>% lubridate::force_tz(tz = "EST") %>% lubridate::round_date("minute")
-  # 
-  # #3 Return level data
-  # return(leveldata)
 }
 
 # marsFetchRainEventData --------------------------------
@@ -953,14 +859,6 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
                        "AND eventdataend <= Date('", end_date + lubridate::days(1), "');")
   
   events <- odbc::dbGetQuery(con, event_query) 
-  # # making this "EST"
-  # events %<>% dplyr::mutate(eventdatastart_est = lubridate::force_tz(eventdatastart_edt,"EST"))
-  # events %<>% dplyr::mutate(eventdataend_est = lubridate::force_tz(eventdataend_edt,"EST"))
-  # events %<>% dplyr::select(-eventdatastart_edt,
-  #                    -eventdataend_edt)
-  # 
-  # #3 return event data
-  # return(events)
 }
 
 # marsFetchMonitoringData --------------------------------
