@@ -226,6 +226,7 @@ marsInterpolateBaro <- function(baro_psi, smp_id, weight, target_id){
 
 yday_decimal <- function(dtime){
   lubridate::yday(dtime) + lubridate::hour(dtime)/24 + lubridate::minute(dtime)/(24*60) + lubridate::second(dtime)/(24*60*60)
+  #### Does not include POSIXct types
 }
 
 
