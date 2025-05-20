@@ -1,4 +1,5 @@
 library(pool)
+library(pwdgsi)
 
 # Test jump forward in March
 conn_old <- dbPool(
@@ -13,7 +14,7 @@ conn_old <- dbPool(
 # Current production db
 old_mars <- old_monitoring(con = conn_old, 
                       target_id = "1267-2-1",
-                      ow_suffix = "CS1",
+                      ow_suffix = "CS2",
                       source = "gauge",
                       start_date = "2024-03-01",
                       end_date = "2024-03-31",
@@ -32,9 +33,10 @@ conn_sand <- dbPool(
   timezone = "America/New_York")
 
 # Data from sandbox_dtime
-new_mars1 <- marsFetchMonitoringData(con = conn_sand, 
+new_mars <- marsFetchMonitoringData(con = conn_sand, 
                                 target_id = "1267-2-1",
-                                ow_suffix = "CS1",
+                                ow_suffix = "CS2",
+                                source = "gauge",
                                 start_date = "2024-03-01",
                                 end_date = "2024-03-31",
                                 sump_correct = TRUE)

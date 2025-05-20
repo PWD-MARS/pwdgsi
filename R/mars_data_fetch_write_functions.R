@@ -764,7 +764,7 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
 
 #' Fetch monitoring data for an SMP
 #'
-#' Returns a list with data frames with rain data and rain event data from the rain gage closest to the request SMP, and level data
+#' Returns a list with data frames: Rain Event Data, Rain Gage Data, and Level Data. All data is filtered based on available water level data.
 #'   
 #' @param con An ODBC connection to the MARS Analysis database returned by odbc::dbConnect
 #' @param target_id vector of chr, SMP ID, where the user has requested data
@@ -779,7 +779,7 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
 #' @param daylight_savings logical, WILL NOT WORK in current version 
 #' @param debug logical, whether to print lookup times and outputs
 #'
-#' @return Output will be a list consisting of a combination of the following:
+#' @return Output will be a list consisting of the follow elements filtered by level data:
 #' 
 #'     \item{Rain Event Data}{dataframe, output from \code{\link{marsFetchRainEventData}}}
 #'     \item{Rain Gage Data}{dataframe, output from \code{\link{marsFetchRainfallData}}}
@@ -794,7 +794,6 @@ marsFetchRainEventData <- function(con, target_id, source = c("gage", "radar"), 
 marsFetchMonitoringData <- function(con, target_id, ow_suffix, source = c("gage", "radar"), start_date, end_date,
                                     sump_correct = TRUE, rain_events = TRUE, rainfall = TRUE, level = TRUE, daylight_savings = FALSE,
                                     debug = FALSE){
-  
   # Check database connection
   if(!DBI::dbIsValid(con)){
     stop("Argument 'con' is not an open database connection")
@@ -814,157 +813,149 @@ marsFetchMonitoringData <- function(con, target_id, ow_suffix, source = c("gage"
     stop("Argument 'source' is not one of 'gage' or 'radar'")
   }
   
-  #2 Initialize list
+  # Initialize list
   results <- list()
   
   #Get closest gage
-  
+  #### We shoudl get rid fo these debug check points.
   if(debug){
     ptm <- proc.time()
   }
-
-  smp_rain <- odbc::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$smptable)) %>% dplyr::filter(smp_id %in% target_id)
-  ow_validity <- odbc::dbGetQuery(con, "SELECT * FROM fieldwork.tbl_ow")
+  # Find smp_gage_uid, smp_id, and gage_uid 
+  smp_rain <- DBI::dbGetQuery(con, paste0("SELECT * FROM ", rainparams$smptable)) %>% dplyr::filter(smp_id %in% target_id)
+  # Pull all OWs that are in the fieldwork app
+  ow_validity <- DBI::dbGetQuery(con, "SELECT * FROM fieldwork.tbl_ow")
+  # Join smp_rain with fieldwork data 
+  #### This seems like a lot of additional information we don't need.
   ow_uid_gage <- ow_validity %>% dplyr::right_join(smp_rain, by = "smp_id")
-  
+
   if(debug){
   print(paste0(source, "_lookup_time: ", (proc.time()-ptm)[3]))
   }
-  
+
   #Set datetime date types
   start_date %<>% as.POSIXct(format = '%Y-%m-%d')
   end_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  
+
   if(debug){
     ptm <- print(paste("date_time conversion time:", (proc.time()-ptm)[3]))
   }
-  
-  #3 Add rain events
+
+  # Add rain events
   if(rain_events == TRUE){
     for(i in 1:length(target_id)){
       results[["Rain Event Data step"]] <- marsFetchRainEventData(con, target_id[i], source, start_date[i], end_date[i])
+      #### are start_date[i] and end_date[i] doing anything?
       start_date[i] <- ifelse(nrow(results$`Rain Event Data step`) > 1,
-                              min(results[["Rain Event Data step"]]$eventdatastart_est),
+                              min(results[["Rain Event Data step"]]$eventdatastart),
                               start_date[i])
       end_date[i] <-  ifelse(nrow(results$`Rain Event Data step`) > 1,
-                           max(results[["Rain Event Data step"]]$eventdatastart_est),
+                           max(results[["Rain Event Data step"]]$eventdatastart),
                            end_date[i])
       results[["Rain Event Data"]] <- dplyr::bind_rows(results[["Rain Event Data"]], results[["Rain Event Data step"]])
       results[["Rain Event Data step"]] <- NULL
     }
   }
-  
-  
-  if(debug){
-    ptm <- proc.time()
-  }
-  
-  
-  #4 Add Rainfall
-  if(rainfall == TRUE){
-    for(i in 1:length(target_id)){
-      results[["Rainfall Data step"]] <- marsFetchRainfallData(con, target_id[i], source, start_date[i], end_date[i], daylight_savings)
-      start_date[i] <- min(results[["Rainfall Data step"]]$dtime_est - lubridate::days(1), na.rm = TRUE)
-      end_date[i] <- max(results[["Rainfall Data step"]]$dtime_est + lubridate::days(1), na.rm = TRUE)
-      results[["Rainfall Data"]] <- dplyr::bind_rows(results[["Rainfall Data"]], results[["Rainfall Data step"]])
-      results[["Rainfall Data step"]] <- NULL
-    }
-  }
-  #####
-  
-  if(debug){
-    print(paste("rainfall_lookup_time:", (proc.time()-ptm)[3]))
-  }
-  
-  if(debug){
-    ptm <- proc.time()
-  }
-  
-  #5 Add level data
-  if(level == TRUE){
-    
-    for(i in 1:length(target_id)){
-      results[["Level Data step"]] <- marsFetchLevelData(con, target_id[i], ow_suffix[i], start_date[i], end_date[i], sump_correct) %>% 
-        dplyr::left_join(ow_uid_gage, by = "ow_uid") %>%  #join rain gage uid
-        dplyr::select(dtime_est, level_ft, ow_uid, rainparams$uidvar) #remove extra columns
-      if(rain_events == TRUE){
-        level_data_step <- results[["Level Data step"]] #coerce to data frame
-        
-        results_event_data <- results[["Rain Event Data"]]
-        
-        level_data_step <- level_data_step[(!is.na(level_data_step$dtime_est)),]
-        
-        #select relevant columns from the results
-        results_event_data %<>% dplyr::select(rainparams$eventuidvar, rainparams$uidvar, eventdatastart_est)
-        
-        #join by gage uid and by start time, to give a rainfall gage event uid at the start of each event
-        level_data_step %<>% dplyr::left_join(results_event_data, 
-                                              by = c(rainparams$uidvar, "dtime_est" = "eventdatastart_est"))   
-        
-        #carry event uids forward from event start to start of next event
-        level_data_step[[rainparams$eventuidvar]] %<>% zoo::na.locf(na.rm = FALSE)
-        
-        #isolate event data needed for assuring that the rainfall gage event uid isn't assigned too far past the event end
-        event_data <- results[["Rain Event Data"]]  %>% 
-          dplyr::select(rainparams$eventuidvar, eventdataend_est)
-        
-        #browser()
-        
-        #join event end times to level data by event uid
-        #check that any dtime that has that event uid does not exceed the end time by greater than three days
-        #if it does, reassign NA to event uid
-        level_data_step %<>% dplyr::left_join(event_data, by = rainparams$eventuidvar) %>% 
-          dplyr::mutate(new_event_uid = dplyr::case_when(dtime_est >= (eventdataend_est + lubridate::days(4)) ~ NA_integer_, 
-                                                         TRUE ~ level_data_step[[rainparams$eventuidvar]])) %>% 
-          dplyr::select(-!!rainparams$eventuidvar, -eventdataend_est) %>% 
-          dplyr::rename(!!rainparams$eventuidvar := new_event_uid)
-        
-        
-        results[["Level Data step"]] <- NULL
-        results[["Level Data step"]] <- level_data_step
-      }
-      
-      results[["Level Data"]] <- dplyr::bind_rows(results[["Level Data"]], results[["Level Data step"]])
-      results[["Level Data step"]] <- NULL
-    }
-  }
-  
-  if(debug){
-    print(paste("level_lookup_time:", (proc.time()-ptm)[3]))
-  }
-  
+
   if(debug){
     ptm <- proc.time()
   }
 
-  #remove incomplete events from level/rainfall/rain event data
+  # 4 Add Rainfall
+  if(rainfall == TRUE){
+    for(i in 1:length(target_id)){
+      results[["Rainfall Data step"]] <- marsFetchRainfallData(con, target_id[i], source, start_date[i], end_date[i], daylight_savings)
+      #### The following start_date and end_date lines don't seem to be used/saved anywhere
+      start_date[i] <- min(results[["Rainfall Data step"]]$dtime - lubridate::days(1), na.rm = TRUE)
+      end_date[i] <- max(results[["Rainfall Data step"]]$dtime + lubridate::days(1), na.rm = TRUE)
+      results[["Rainfall Data"]] <- dplyr::bind_rows(results[["Rainfall Data"]], results[["Rainfall Data step"]])
+      results[["Rainfall Data step"]] <- NULL
+    }
+  }
+
+  if(debug){
+    print(paste("rainfall_lookup_time:", (proc.time()-ptm)[3]))
+  }
+
+  if(debug){
+    ptm <- proc.time()
+  }
+  # Add level data
+  if(level == TRUE){
+
+    for(i in 1:length(target_id)){
+      results[["Level Data step"]] <- marsFetchLevelData(con, target_id[i], ow_suffix[i], start_date[i], end_date[i], sump_correct) %>%
+        dplyr::left_join(ow_uid_gage, by = "ow_uid") %>%  #join rain gage uid
+        dplyr::select(dtime, level_ft, ow_uid, rainparams$uidvar) #remove extra columns
+      if(rain_events == TRUE){
+        level_data_step <- results[["Level Data step"]] #coerce to data frame
+
+        results_event_data <- results[["Rain Event Data"]]
+
+        level_data_step <- level_data_step[(!is.na(level_data_step$dtime)),]
+
+        #select relevant columns from the results
+        results_event_data %<>% dplyr::select(rainparams$eventuidvar, rainparams$uidvar, eventdatastart)
+
+        #join by gage uid and by start time, to give a rainfall gage event uid at the start of each event
+        level_data_step %<>% dplyr::left_join(results_event_data,
+                                              by = c(rainparams$uidvar, "dtime" = "eventdatastart"))
+
+        #carry event uids forward from event start to start of next event
+        level_data_step[[rainparams$eventuidvar]] %<>% zoo::na.locf(na.rm = FALSE)
+
+        #isolate event data needed for assuring that the rainfall gage event uid isn't assigned too far past the event end
+        event_data <- results[["Rain Event Data"]]  %>%
+          dplyr::select(rainparams$eventuidvar, eventdataend)
+
+        #browser()
+
+        #join event end times to level data by event uid
+        #check that any dtime that has that event uid does not exceed the end time by greater than three days
+        #if it does, reassign NA to event uid
+        level_data_step %<>% dplyr::left_join(event_data, by = rainparams$eventuidvar) %>%
+          dplyr::mutate(new_event_uid = dplyr::case_when(dtime >= (eventdataend + lubridate::days(4)) ~ NA_integer_,
+                                                         TRUE ~ level_data_step[[rainparams$eventuidvar]])) %>%
+          dplyr::select(-!!rainparams$eventuidvar, -eventdataend) %>%
+          dplyr::rename(!!rainparams$eventuidvar := new_event_uid)
+
+
+        results[["Level Data step"]] <- NULL
+        results[["Level Data step"]] <- level_data_step
+      }
+
+      results[["Level Data"]] <- dplyr::bind_rows(results[["Level Data"]], results[["Level Data step"]])
+      results[["Level Data step"]] <- NULL
+    }
+  }
+
+  if(debug){
+    print(paste("level_lookup_time:", (proc.time()-ptm)[3]))
+  }
+
+  if(debug){
+    ptm <- proc.time()
+  }
+
+  # Filter all dataframes by available water level data if all datafames are requested
   if(rain_events == TRUE & rainfall == TRUE & level == TRUE){
-  test_df_id <- dplyr::full_join(results[["Rainfall Data"]], results[["Level Data"]], by = c("dtime_est", rainparams$eventuidvar, rainparams$uidvar)) %>% #join
-    dplyr::arrange(dtime_est) %>% 
+  test_df_id <- dplyr::full_join(results[["Rainfall Data"]], results[["Level Data"]], by = c("dtime", rainparams$eventuidvar, rainparams$uidvar)) %>%
+    dplyr::arrange(dtime) %>%
     dplyr::filter(!is.na(rainparams$eventuidvar) & is.na(level_ft)) %>%  #filter events that are not NA and and water level that is not NA
-    dplyr::pull(rainparams$eventuidvar) 
-  
+    dplyr::pull(rainparams$eventuidvar)
   results[["Level Data"]] %<>% dplyr::filter(!(rainparams$eventuidvar %in% test_df_id))
-  
   # !!sym syntax comes from here: https://stackoverflow.com/questions/49786597/r-dplyr-filter-with-a-dynamic-variable-name
   # Because our variable name is a string, we need to make it evaluate as an R symbol instead of the string
   # choked during recent deployment, going to attempt to use rlang::sym() instead
-  
-  #filter out rain data for events that do have corresponding water level data
+  # filter out rain data for events that do have corresponding water level data
   results[["Rainfall Data"]] %<>% dplyr::filter((!!rlang::sym(rainparams$eventuidvar) %in% results[["Level Data"]][, rainparams$eventuidvar]))
-  
   #fiter out rain events that no longer have corresponding rainfall data
   results[["Rain Event Data"]] %<>% dplyr::filter((!!rlang::sym(rainparams$eventuidvar) %in% results[["Rainfall Data"]][, rainparams$eventuidvar]))
-  
+
   if(debug){
     print(paste("filtering_time:", (proc.time()-ptm)[3]))
+    }
   }
-  
-  }
-  
-  
-  
-  #6 Return results
   return(results)
 }
 

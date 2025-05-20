@@ -11,9 +11,9 @@ conn_old <- dbPool(
   timezone = "EST")
 
 # Current production db
-old_mars <- old_level(con = conn_old, 
+old_mars_level <- old_level(con = conn_old, 
                       target_id = "1267-2-1",
-                      ow_suffix = "CS1",
+                      ow_suffix = "CS2",
                       start_date = "2024-03-01",
                       end_date = "2024-03-31",
                       sump_correct = TRUE)
