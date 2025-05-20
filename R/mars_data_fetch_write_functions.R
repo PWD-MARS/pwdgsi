@@ -218,17 +218,14 @@ marsInterpolateBaro <- function(baro_psi, smp_id, weight, target_id){
 #'
 #' Return the day of the year, with hours and seconds as the decimal
 #'
-#' @param dtime_est POSIXct, format: "POSIXct, format: "YYYY-MM-DD HH:MM:SS""
+#' @param dtime POSIXct, format: "POSIXct, format: "YYYY-MM-DD HH:MM:SS""
 #' 
 #' @return Output with be a day with a decimal
 #' 
 #' @export
 
-
-
-yday_decimal <- function(dtime_est){
-
-  lubridate::yday(dtime_est) + lubridate::hour(dtime_est)/24 + lubridate::minute(dtime_est)/(24*60) + lubridate::second(dtime_est)/(24*60*60)
+yday_decimal <- function(dtime){
+  lubridate::yday(dtime) + lubridate::hour(dtime)/24 + lubridate::minute(dtime)/(24*60) + lubridate::second(dtime)/(24*60*60)
 }
 
 
