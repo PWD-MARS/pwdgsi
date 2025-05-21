@@ -59,7 +59,7 @@ marsWaterLevelBaseline_ft <- function(dtime, level_ft, max_infil_rate_inhr = 1){
 #' Estimated infiltration rate based on observed data
 #' 
 #' @param  event                Rainfall event ID (grouping variable)
-#' @param  dtime_est            A vector of POSIXct date times, in ascending order
+#' @param  dtime                A vector of POSIXct date times, in ascending order
 #' @param  rainfall_in          Rainfall depths during periods corresponding to times in  dtime_est (in)
 #' @param  dcia_ft2             Directly connected impervious area (sf)
 #' @param  orifice_height_ft    Orifice height (ft)
@@ -99,21 +99,19 @@ marsWaterLevelBaseline_ft <- function(dtime, level_ft, max_infil_rate_inhr = 1){
 #'                                                waterlevel_ft = level_ft))
 #' 
 
-marsInfiltrationRate_inhr <- function(event, #for warning messages
-                                              dtime_est,
-                                              rainfall_in, #for removing overlapping events
-                                              dcia_ft2, #directly connected impervious area
-                                              orifice_height_ft = NA, #default to NA if no orifice outlet
-                                              orifice_diam_in = NA, #default to NA if no orifice outlet
-                                              storage_depth_ft,
-                                              storage_vol_ft3,
-                                              waterlevel_ft, #observed data
-                                              depth_in = 6, #depth at which to take infiltration rate
-                                              discharge_coeff = 0.62 #Orifice discharge coefficient
-){
+marsInfiltrationRate_inhr <- function(event,
+                                      dtime_est,
+                                      rainfall_in,
+                                      dcia_ft2,
+                                      orifice_height_ft = NA,
+                                      orifice_diam_in = NA,
+                                      storage_depth_ft,
+                                      storage_vol_ft3,
+                                      waterlevel_ft,
+                                      depth_in = 6, 
+                                      discharge_coeff = 0.62) {
   
-  #1. Prepare data
-  #1.1 Initialize data frame
+  # Initialize data frame
   df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
                        rainfall_in,
                        depth_ft = waterlevel_ft, #observed data
