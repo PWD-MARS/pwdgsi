@@ -7,7 +7,7 @@
 #' @param level_ft Observed water level data (ft)
 #' @param max_infil_rate_inhr default = 1; maximum infiltration rate at the end of the timeseries that will allow for a "baseline" to be considered
 #'
-#' @return Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 15 minutes of the time series
+#' @return Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 75 minutes of the time series
 #' @export
 #'
 
@@ -15,39 +15,41 @@ marsWaterLevelBaseline_ft <- function(dtime, level_ft, max_infil_rate_inhr = 1){
   #### The name of the function an its purpose is a bit confusing because it's not the base line but the water level at the end of the period
   #### Shouldn't the baseline be before some period?
   
-  # Find time interval between n and n-1 datetimes.
+  # Find time interval between dtime[n] and dtime[n-1] 
+  #### We're only checking the steps based on the last step?
   step_diff <- as.numeric(difftime(dtime[length(dtime)], dtime[length(dtime) - 1], units = "mins"))
   #### We don't do any checks for this function. Rollmean can't handle NA's which we should check for.
   #### Should we be checking the the whole interval is the same?
   if(step_diff == 5){ # 5 minute interval
     steps <- 3
-    #apply a 15-minute simple moving average
-    #### Check to make sure this works
+    dplyr::glimpse(steps)
+    # Apply a 15-minute simple moving average
     level_ft <- zoo::rollmean(level_ft, steps, fill = NA)
   }else{ #15 minute interval
     steps <- 1
   }
-  level_ft
-  # #create dataframe of dtime_est and level, and discard NAs formed at the edges during the moving average
-  # df <- data.frame(dtime_est, level_ft) %>% dplyr::filter(!is.na(level_ft))
-  # 
-  # last_point <- round(df$level_ft[length(df$level_ft)], 4)
-  # 
-  # test <- df %>% #Check if difference between level over x timesteps is less than 0.01ft
-  #   dplyr::mutate(lag_1 = dplyr::lag(level_ft, steps), 
-  #                 diffr = abs(level_ft - lag_1)) %>% 
-  #   dplyr::arrange(desc(dtime_est)) %>% 
-  #   head(5)
-  # 
-  # #0.25 in/hr or lower is considered "not infiltrating". This is converted to ft/(15 minutes)
-  # depth_change <- max_infil_rate_inhr*1/12*15/60
-  # 
-  # if(min(test$diffr, na.rm = TRUE) > depth_change){
-  #   return(NA)
-  # }else{
-  #   return(round(last_point, 4))
-  # }
-  # 
+  # Create dataframe of dtime and level, and discard NAs formed at the edges during the moving average
+  df <- data.frame(dtime, level_ft) %>% dplyr::filter(!is.na(level_ft))
+  # Round the point to 4 places
+  last_point <- round(df$level_ft[length(df$level_ft)], 4)
+  
+  # The last 1.25 hours of the time series
+  test <- df %>% 
+    dplyr::mutate(lag_1 = dplyr::lag(level_ft, steps),
+                  diffr = abs(level_ft - lag_1)) %>%
+    dplyr::arrange(desc(dtime)) %>%
+    head(5)
+
+  # Convert max_infil_rain_inhr to ft/(15 minutes)
+  depth_change <- max_infil_rate_inhr*1/12*15/60
+
+  # Return last level_ft if the smallest of the last 1.25 hours of change in level is larger than the max_infil
+  if(min(test$diffr, na.rm = TRUE) > depth_change){
+    return(NA)
+  }else{
+    return(round(last_point, 4))
+  }
+
 }
 
 
