@@ -12,7 +12,7 @@ conn_old <- dbPool(
 
 # Pull level and dtime data
 old_lvl_q <- "SELECT dtime_est, level_ft, smp_id, ow_suffix FROM data.viw_ow_leveldata_sumpcorrected WHERE smp_id = '1267-2-1' AND ow_suffix = 'CS2' 
-AND dtime_est BETWEEN '2024-03-01' AND '2024-03-31'"
+AND dtime_est BETWEEN '2024-03-01 00:00:00' AND '2024-03-31 23:59:59'"
 
 old_lvl <- dbGetQuery(conn_old, old_lvl_q)
 
@@ -43,7 +43,7 @@ conn_sand <- dbPool(
   timezone = NULL)
 
 new_lvl_q <- "SELECT dtime, level_ft, smp_id, ow_suffix FROM data.viw_ow_leveldata_sumpcorrected WHERE smp_id = '1267-2-1' AND ow_suffix = 'CS2' 
-AND dtime BETWEEN '2024-03-01' AND '2024-03-31'"
+AND dtime BETWEEN '2024-03-01 00:00:00' AND '2024-03-31 23:59:59'"
 
 new_lvl <- dbGetQuery(conn_sand, new_lvl_q)
 
@@ -58,14 +58,4 @@ diffs_lvl <- dplyr::symdiff(new_lvl, old_lvl_adj)
 
 # Diff between baseline function output
 diff <- dplyr::symdiff(new_mars, old_mars)
-
-
-dtime <- c("2024-03-01 01:00:00", "2024-03-01 01:05:00", "2024-03-01 01:10:00", "2024-03-01 01:15:00", "2024-03-01 01:20:00", "2024-03-01 01:25:00", "2024-03-01 01:30:00")
-level_ft = c(1, 2, 3, 4,5,6,7)
-
-df <- tibble::tibble(dtime, level_ft)
-
-df <- df |>
-  dplyr::mutate(dtime = lubridate::ymd_hms(dtime, tz = "America/New_York"))
-
-test_mars <- marsWaterLevelBaseline_ft(df$dtime, df$level_ft)
+# Matches but shows difference due to quering using EST and converting to America/New_York
