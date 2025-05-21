@@ -10,13 +10,12 @@ conn_old <- dbPool(
   password = Sys.getenv("shiny_pwd"),
   timezone = "EST")
 
-<<<<<<< HEAD
 event <- marsFetchRainEventData(conn_old,
                                 "1267-2-1",
                                 "gage",
                                 "2024-03-27 15:15:00",
                                 "2024-03-28 04:30:00")
-=======
+
 # Pull level and dtime data
 old_lvl_q <- "SELECT dtime_est, level_ft, smp_id, ow_suffix FROM data.viw_ow_leveldata_sumpcorrected WHERE smp_id = '1267-2-1' AND ow_suffix = 'CS2' 
 AND dtime_est BETWEEN '2024-03-01 00:00:00' AND '2024-03-31 23:59:59'"
@@ -66,4 +65,3 @@ diffs_lvl <- dplyr::symdiff(new_lvl, old_lvl_adj)
 # Diff between baseline function output
 diff <- dplyr::symdiff(new_mars, old_mars)
 # Matches but shows difference due to quering using EST and converting to America/New_York
->>>>>>> 168d59a5f61912f48bc2438539497ee6ea15bb48
