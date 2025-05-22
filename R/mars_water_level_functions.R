@@ -201,12 +201,12 @@ marsInfiltrationRate_inhr <- function(event,
     message(paste0('Rainfall greater than 0.05 inches occurs during the recession period in Event ', event[1], '.'))
     return(-920)
   }
-  # 
-  # # Calculate infiltration rate
-  # 
-  # # Calculate total orifice flow
-  # # Make sure that orifice outflow does not exceed delta V at any timestep
-  # #sensor noise sometimes causes delta V to go the wrong direction, so that is evened out to zero
+
+  # Calculate infiltration rate
+
+  # Calculate total orifice flow
+  # Make sure that orifice outflow does not exceed delta V at any timestep
+  #sensor noise sometimes causes delta V to go the wrong direction, so that is evened out to zero
   tempseries %<>% 
     dplyr::mutate(slow_release_check = dplyr::case_when(is.na(dplyr::lead(vol_ft3)) ~ slow_release_ft3,
                                                         vol_ft3 - dplyr::lead(vol_ft3) < 0 ~ 0,
@@ -238,7 +238,7 @@ marsInfiltrationRate_inhr <- function(event,
 # Observed Orifice Outflow Volume -------------------------------------------
 #Description of the arguments:
 
-#IN:  dtime_est            A vector of POSIXct date times, in ascending order
+#IN:  dtime           A vector of POSIXct date times, in ascending order
 #IN:  waterlevel_ft        Observed water level data, in feet
 #IN:  orifice_height_ft    Orifice height, in feet
 #IN:  orifice_diam_in      Orifice diameter, in inches
@@ -250,13 +250,13 @@ marsInfiltrationRate_inhr <- function(event,
 #' 
 #' Total observed orifice outflow volume (cf)
 #' 
-#' @param  dtime_est            A vector of POSIXct date times, in ascending order
+#' @param  dtime            A vector of POSIXct date times, in ascending order
 #' @param  waterlevel_ft        Observed water level data (ft)
 #' @param  orifice_height_ft    Orifice height (ft)
 #' @param  orifice_diam_in      Orifice diameter (in)
 #' @param  discharge_coeff      Orifice discharge coefficient
 #' 
-#' @return Output is total observed orifice outflow volume (cf)
+#' @return Output is total observed orifice outflow volume (cf) per hour
 #' 
 #' @seealso \code{\link{marsInfiltrationRate_inhr}}
 #' 
@@ -283,43 +283,39 @@ marsInfiltrationRate_inhr <- function(event,
 #' 
 #' 
 
-marsUnderdrainOutflow_cf <- function(dtime_est, 
+marsUnderdrainOutflow_cf <- function(dtime, 
                                      waterlevel_ft, 
                                      orifice_height_ft,
                                      orifice_diam_in,
-                                     #DEFAULT VALUES
-                                     discharge_coeff = 0.62){ #Orifice discharge coefficient
+                                     discharge_coeff = 0.62){
   
-  #1. Prepare data
-  #1.1 Initialize data frame
-  df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
-                       depth_ft = waterlevel_ft)#, #observed data
-  #elapsed_time_hr = 0, 
-  #WL_above_orifice_ft = 0,
-  #slow_release_vol_ft3 = 0) 
+  # Prepare data
+  # Initialize data frame
+  df <- tibble::tibble(dtime = dtime,
+                       # Why do we change the name?
+                       depth_ft = waterlevel_ft)
   
-  #2. Calculate Orifice Outflow
-  # Orifice equation:
+  # Calculate Orifice Outflow
   # Q_orifice = C * Area * sqrt(2 * gravity * depth) * time
   
-  #2.1 Calculate area of orifice (ft2)
+  # Calculate area of orifice (ft2)
   orifice_area_ft2 <- pi*((orifice_diam_in[1]/12)^2)/4 #area of orifice (ft2)
   
   df <- df %>%
     dplyr:: mutate(#2.2 calculate elapsed time (hrs) 
-      elapsed_time_hr = difftime(dtime_est, dplyr::lag(dtime_est), units = "hours"), #difftime(lead(dtime_est), dtime_est, units = "hours"),
-      
-      #2.3 Calculate height of water above orifice (ft)
+      elapsed_time_hr = difftime(dtime, dplyr::lag(dtime), units = "hours"),
+      # Calculate height of water above orifice (ft)
       WL_above_orifice_ft = depth_ft - orifice_height_ft[1],
       
-      #2.4 Set height of water to 0 if below elevation of orifice
+      # Set height of water to 0 if below elevation of orifice
       WL_correction = ifelse(WL_above_orifice_ft < 0,0, WL_above_orifice_ft),
       
-      #2.4 Calculate total discharge through orifice
+      # Calculate total discharge through orifice
       slow_release_ft3 = discharge_coeff*
         orifice_area_ft2*
-        sqrt(2 * 32.2 * WL_correction) * 
-        60*60 * #convert cfs to cfhr     
+        sqrt(2 * 32.2 * WL_correction) *
+        #convert cfs to cfhr  
+        60*60 *    
         as.numeric(elapsed_time_hr))
   
   
