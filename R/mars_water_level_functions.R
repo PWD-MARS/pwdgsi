@@ -256,7 +256,7 @@ marsInfiltrationRate_inhr <- function(event,
 #' @param  orifice_diam_in      Orifice diameter (in)
 #' @param  discharge_coeff      Orifice discharge coefficient
 #' 
-#' @return Output is total observed orifice outflow volume (cf) per hour
+#' @return Output is total observed orifice outflow volume (cf) 
 #' 
 #' @seealso \code{\link{marsInfiltrationRate_inhr}}
 #' 
@@ -357,36 +357,13 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 }
 
 # marsSimulatedLevelSeries_ft -------------------------------------------------
-# NOTES: Based on a time series simulation function written by Taylor Heffernan (4/5/2018) and Dwayne Myers (6/13/2018), modified by Katie Swanson (March 2019), then modified by Nick Manna (July 2019)
-#        Function generates simulated water level in subsurface stormwater infiltration tank with underdrain (orifice outlet)
-#        Updated to include option for orifice flow.
-
-#Description of the arguments:
-
-#IN:  dtime_est               A vector of POSIXct date times, in ascending order
-#IN:  rainfall_in             Rainfall depths during periods corresponding to times in  dtime_est, in inches
-#IN:  event                   A vector of Event IDs
-#IN:  infil_footprint_ft2     Total area of the system that is open to infiltration, in square feet
-#IN:  dcia_ft2                Directly connected impervious area, in square feet
-#IN:  orifice_height_ft       Orifice height, in feet (NA if no orifice outlet)
-#IN:  orifice_diam_in         Orifice diameter, in inches (NA if no orifice outlet)
-#IN:  storage_depth_ft        Maximum storage depth, in feet
-#IN:  storage_vol_ft3         Maximum storage volume (pore space), in cubic feet
-#IN:  infil_rate_inhr         System design infiltration rate, in inches per hour
-#IN:  initial_water_level_ft  Initial water Level, in feet (Default = 0)
-#IN:  runoff_coeff            Rational method coefficient (Default = 1)
-#IN:  discharge_coeff         Orifice discharge coefficient (Defauly = 0.62)
-
-
-#OUT: Dataframe of the following columns: dtime_est, rainfall_in, event, Simulated_depth_ft, Simulated_vol_ft3, Simulated_orifice_vol_ft3
-
 #' Simulated Water Level
 #' 
 #' Simulates water level in subsurface stormwater infiltration system with underdrain.
 #' Note: This version of the package targets the PG12 database, and simulating rain gage events is deprecated. The rain event variable name is hard-coded to the radar IDs.
 #' 
-#' @param  dtime_est               A vector of POSIXct date times, in ascending order
-#' @param  rainfall_in             Rainfall depths during periods corresponding to times in  dtime_est (in)
+#' @param  dtime                   A vector of POSIXct date times, in ascending order
+#' @param  rainfall_in             Rainfall depths during periods corresponding to times in dtime (in)
 #' @param  event                   A vector of Event IDs
 #' @param  infil_footprint_ft2     Total area of the system that is open to infiltration (sf)
 #' @param  dcia_ft2                Directly connected impervious area (sf)
@@ -400,7 +377,7 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 #' @param  discharge_coeff         Orifice discharge coefficient (Default = 0.62)
 #' 
 #' 
-#' @return Output is a dataframe with the following columns: dtime_est, rainfall_in, radar_event_uid, simulated_depth_ft, simulated_vol_ft3, simulated_orifice_vol_ft3
+#' @return Output is a dataframe with the following columns: dtime, rainfall_in, radar_event_uid, simulated_depth_ft, simulated_vol_ft3, simulated_orifice_vol_ft3
 #' 
 #' @seealso \code{\link{simulation.stats}}
 #' 
@@ -419,20 +396,19 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 #' 
 #' @export
 
-marsSimulatedLevelSeries_ft <- function(dtime_est,
+marsSimulatedLevelSeries_ft <- function(dtime,
                                         rainfall_in,
                                         event,
-                                        infil_footprint_ft2, #footprint of the SMP that is open to infiltration
-                                        dcia_ft2, #directly connected impervious area
-                                        orifice_height_ft = NA, #default to NA if no orifice outlet
-                                        orifice_diam_in = NA, #default to NA if no orifice outlet
+                                        infil_footprint_ft2,
+                                        dcia_ft2, 
+                                        orifice_height_ft = NA,
+                                        orifice_diam_in = NA,
                                         storage_depth_ft,
                                         storage_vol_ft3,
-                                        infil_rate_inhr = 0.06, #New default based on Compliance guidance
-                                        #default values
+                                        infil_rate_inhr = 0.06,
                                         initial_water_level_ft = 0, 
-                                        runoff_coeff = 1, #rational method coefficient
-                                        discharge_coeff = 0.62 #Orifice discharge coefficient
+                                        runoff_coeff = 1, 
+                                        discharge_coeff = 0.62
 ){ 
   
   #Data Validation 
@@ -460,14 +436,12 @@ marsSimulatedLevelSeries_ft <- function(dtime_est,
     infil_rate_inhr <- 0.06 #Overload existing snapshots
   }
     
- # browser()
-
-  
-  
-  #Prepare data
   #Initialize data frames
-  collected_data <- data.frame(dtime_est, rainfall_in, event)
+  #### We don't check to see if these are the same size before combining.
+  #### I'm guessing the event id vector needs to match the rainfall exactly or else recycling will mess things up.
+  collected_data <- data.frame(dtime, rainfall_in, event)
   
+  #### Not checked
   if(length(initial_water_level_ft) > 1){
     events <- unique(event)
     events <- events[!is.na(events)]
@@ -475,47 +449,48 @@ marsSimulatedLevelSeries_ft <- function(dtime_est,
     collected_data <- collected_data %>% dplyr::left_join(events_initial, by = c("event" = "events"))
   }
   
-  simseries_total <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
+  simseries_total <- tibble::tibble(dtime,
                                     rainfall_in = 0, 
                                     event = 0,
                                     depth_ft = 0, 
                                     vol_ft3 = 0,
                                     runoff_ft3 = 0,
                                     slow_release_ft3 = 0,
-                                    infiltration_ft3 = 0, #POTENTIAL infiltration
+                                    infiltration_ft3 = 0,
                                     end_vol_ft3 = 0) 
   simseries_total <- simseries_total[0,]
   unique_events <- unique(collected_data$event) #vector of unique event IDs
   unique_events <- unique_events[!is.na(unique_events)]
   infil_rate_inhr[is.na(infil_rate_inhr)] <- 0
-  
-  #if statements
+
+  # Calculate area if there is an orifice
   orifice_if <- is.na(orifice_diam_in[1]) == FALSE
   if(orifice_if){
     orifice_area_ft2 <- pi*((orifice_diam_in[1]/12)^2)/4
   }
   
-  #split data into list of dataframes, one for each event
+  # Split data into list of dataframes, one for each event
+  #### I think this would be easier to work with one event and then combine things afterwards
   collected_data <- split(collected_data, collected_data$event)
-  
+
   #apply the function "sim_loop" to each dataframe in the list "collected data". This is in lieu of a for loop
   simseries_total <- lapply(collected_data, sim_loop, debug, simseries_total, infil_rate_inhr, orifice_if, orifice_area_ft2, infil_footprint_ft2, dcia_ft2, orifice_height_ft, orifice_diam_in, storage_depth_ft, storage_vol_ft3, initial_water_level_ft, runoff_coeff, discharge_coeff)
-  
+
   #take the output of the lapply, a list of dataframes, and bind rows into one dataframe
   simseries_total <- dplyr::bind_rows(simseries_total)
-  
+
   #Series returns a data frame including water depth #may be updated
   simseries_total <- simseries_total %>% dplyr::select("dtime_est", "rainfall_in", "event", "depth_ft", "vol_ft3", "slow_release_ft3")
   simseries_total$dtime_est %<>% lubridate::force_tz("EST")
-  colnames(simseries_total) <- c("dtime_est", 
-                                 "rainfall_in", 
-                                 "radar_event_uid", 
-                                 "simulated_depth_ft", 
-                                 "simulated_vol_ft3", 
+  colnames(simseries_total) <- c("dtime_est",
+                                 "rainfall_in",
+                                 "radar_event_uid",
+                                 "simulated_depth_ft",
+                                 "simulated_vol_ft3",
                                  "simulated_orifice_vol_ft3")
-  
+
   return(simseries_total)
-  
+  # 
 }
 
 
