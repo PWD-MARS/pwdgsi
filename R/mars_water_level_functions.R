@@ -172,66 +172,66 @@ marsInfiltrationRate_inhr <- function(event,
 
   # Establish temp series. Is last depth above 5" part of the same descending limb? Does rainfall occur during recession period?
   tempseries <- df %>%
-    # Filter results where the timestamp is greater than 7" and less than 5?
+    # Filter results where the timestamp is >= 7" and <= 5?
     dplyr::filter(dtime >= last_depth7$dtime & dtime <= last_depth5$dtime)
-#   #assure that the 5" depth used is within the same descending limb as the 7"
-#   #following the last 7" measurement, level can dip and rise back above 5". This cuts off the dip and rise
-#   if(min(tempseries$depth_ft) < (depth_in - 1)/12 + last_depth){
-# 
-#     #select the first point where depth drops below 5"
-#     cutoff <- tempseries %>%
-#       dplyr::filter(depth_ft < (depth_in - 1)/12 + last_depth) %>%
-#       dplyr::slice(1)
-# 
-#     #cut tempseries
-#     tempseries %<>% dplyr::filter(dtime_est < cutoff$dtime_est)
-# 
-#     #reassign last depth above 5"
-#     last_depth5 <- tempseries %>% dplyr::slice(dplyr::n())
-#   }
-#   cutoff
+  # Assure that the 5" depth used is within the same descending limb as the 7"
+  # The following the last 7" measurement, level can dip and rise back above 5". This cuts off the dip and rise
+  ##### Is this the same as <last_depth5$dtime?
+  ##### Not going to check this for now.
+  if(min(tempseries$depth_ft) < (depth_in - 1)/12 + last_depth){
+    
+    # Select the first point where depth drops below 5"
+    cutoff <- tempseries %>%
+      dplyr::filter(depth_ft < (depth_in - 1)/12 + last_depth) %>%
+      dplyr::slice(1)
+    # cut tempseries
+    tempseries %<>% dplyr::filter(dtime < cutoff$dtime)
+    # reassign last depth above 5"
+    last_depth5 <- tempseries %>% dplyr::slice(dplyr::n())
+  }
+  #check this again!
+  #### Why?
+  if(last_depth5$dtime == last_depth7$dtime){
+    message(paste0("Code does not capture descending limb in Event ", event[1], "."))
+    return(-910)
+  }
+  
+  # Does significant ( > 0.05") amount of rainfall occur during the recession period between 7" and 5" (or whatever the specified range is)?
+  if(sum(tempseries$rainfall_in, na.rm = TRUE) >= 0.05){
+    message(paste0('Rainfall greater than 0.05 inches occurs during the recession period in Event ', event[1], '.'))
+    return(-920)
+  }
   # 
-  # #check this again!
-  # if(last_depth5$dtime_est == last_depth7$dtime_est){
-  #   message(paste0("Code does not capture descending limb in Event ", event[1], "."))
-  #   return(-910)
-  # }
+  # # Calculate infiltration rate
   # 
-  # #2.4.4 Does significant ( > 0.05") amount of rainfall occur during the recession period between 7" and 5" (or whatever the specified range is)?
-  # if(sum(tempseries$rainfall_in, na.rm = TRUE) >= 0.05){
-  #   message(paste0('Rainfall greater than 0.05 inches occurs during the recession period in Event ', event[1], '.'))
-  #   return(-920)
-  # }
-  # 
-  # #3. Calculate infiltration rate
-  # 
-  # #3.1 Calculate total orifice flow
-  # #3.1.1 make sure that orifice outflow does not exceed delta V at any timestep
+  # # Calculate total orifice flow
+  # # Make sure that orifice outflow does not exceed delta V at any timestep
   # #sensor noise sometimes causes delta V to go the wrong direction, so that is evened out to zero
-  # tempseries %<>% dplyr::mutate(slow_release_check = dplyr::case_when(is.na(dplyr::lead(vol_ft3)) ~ slow_release_ft3,
-  #                                                       vol_ft3 - dplyr::lead(vol_ft3) < 0 ~ 0,
-  #                                                       TRUE ~ pmin(slow_release_ft3,(vol_ft3 - dplyr::lead(vol_ft3)))))
-  # 
-  # 
-  # total_orifice_ft3 <- sum(tempseries$slow_release_check, na.rm = TRUE)
-  # 
-  # #3.2 Calculate total change storage
-  # change_storage_ft3 <- tempseries$vol_ft3[1] - tempseries$vol_ft3[nrow(tempseries)] - total_orifice_ft3
-  # 
-  # change_depth_in <- vol.to.depth(maxdepth_ft = storage_depth_ft,
-  #                                 maxvol_cf = storage_vol_ft3,
-  #                                 vol_cf = change_storage_ft3)*12
-  # 
-  # #3.3 Calculate infiltration
-  # infiltration_rate_inhr <- round(change_depth_in/ #inches
-  #                                   as.numeric(difftime(last_depth5$dtime_est, last_depth7$dtime_est, units = "hours")),3)
-  # 
-  # if(infiltration_rate_inhr < 0.1){
-  #   message(paste0("Infiltration rate is negligible in Event ", event[1], ".")) 
-  #   return(-930)
-  # }
-  # 
-  # return(round(infiltration_rate_inhr, 4))
+  tempseries %<>% 
+    dplyr::mutate(slow_release_check = dplyr::case_when(is.na(dplyr::lead(vol_ft3)) ~ slow_release_ft3,
+                                                        vol_ft3 - dplyr::lead(vol_ft3) < 0 ~ 0,
+                                                        TRUE ~ pmin(slow_release_ft3,(vol_ft3 - dplyr::lead(vol_ft3)))))
+
+
+  total_orifice_ft3 <- sum(tempseries$slow_release_check, na.rm = TRUE)
+
+  # Calculate total change storage
+  change_storage_ft3 <- tempseries$vol_ft3[1] - tempseries$vol_ft3[nrow(tempseries)] - total_orifice_ft3
+  
+  change_depth_in <- vol.to.depth(maxdepth_ft = storage_depth_ft,
+                                  maxvol_cf = storage_vol_ft3,
+                                  vol_cf = change_storage_ft3)*12
+
+  # Calculate infiltration
+  infiltration_rate_inhr <- round(change_depth_in/ #inches
+                                    as.numeric(difftime(last_depth5$dtime, last_depth7$dtime, units = "hours")), 3)
+
+  if(infiltration_rate_inhr < 0.1){
+    message(paste0("Infiltration rate is negligible in Event ", event[1], "."))
+    return(-930)
+  }
+  
+  infiltration_rate_inhr
   
 }
 
