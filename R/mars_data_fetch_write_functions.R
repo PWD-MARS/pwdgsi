@@ -108,14 +108,14 @@ marsFetchRainfallData <- function(con, target_id, source = c("gage", "radar"), s
   rain_temp <- DBI::dbGetQuery(con, rain_query)
   # Error messages if there are no rows in returned from the DB
   if(nrow(rain_temp) == 0){
-    
+
     if(lubridate::month(start_date) == lubridate::month(lubridate::today())){
       stop(paste("Rainfall data appears in the MARS database on about a 5 week delay. \nData for", lubridate::month(start_date, label = TRUE, abbr = FALSE), "should be available in the second week of", lubridate::month(lubridate::today() + lubridate::dmonths(1), label = TRUE, abbr = FALSE)))
     }
     stop("There is no data in the database for this date range.")
   }
-  # Return rainfall
-  rain_temp
+  # Return rainfall in order
+  rain_temp |> dplyr::arrange(dtime)
 }
 
 # marsGapFillEventID -----------------------
