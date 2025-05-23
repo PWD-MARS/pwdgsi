@@ -1,68 +1,73 @@
-
 # marsWaterLevelBaseline_ft ---------------------------------------------------
 #' Water Level Baseline
 #'
 #' Determine the level at which water level stabilizes following draindown
 #'
-#' @param dtime_est A vector of POSIXct date times, in ascending order
+#' @param dtime A vector of POSIXct date times, in ascending order
 #' @param level_ft Observed water level data (ft)
 #' @param max_infil_rate_inhr default = 1; maximum infiltration rate at the end of the timeseries that will allow for a "baseline" to be considered
 #'
-#' @return Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 15 minutes of the time series
+#' @return Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 75 minutes of the time series
 #' @export
 #'
 
-marsWaterLevelBaseline_ft <- function(dtime_est, level_ft, max_infil_rate_inhr = 1){
+marsWaterLevelBaseline_ft <- function(dtime, level_ft, max_infil_rate_inhr = 1){
+  #### The name of the function an its purpose is a bit confusing because it's not the base line but the water level at the end of the period
+  #### Shouldn't the baseline be before some period?
   
-  #get difference in timesteps to determine steps needed in moving average
-  step_diff <- as.numeric(difftime(dtime_est[length(dtime_est)], dtime_est[length(dtime_est) - 1], units = "mins"))
-  
-  if(step_diff == 5){ #5 minute interval
+  # Find time interval between dtime[n] and dtime[n-1] 
+  #### We're only checking the steps based on the last step?
+  step_diff <- as.numeric(difftime(dtime[length(dtime)], dtime[length(dtime) - 1], units = "mins"))
+  #### We don't do any checks for this function. Rollmean can't handle NA's which we should check for.
+  #### Should we be checking the the whole interval is the same?
+  if(step_diff == 5){ # 5 minute interval
     steps <- 3
-    #apply a 15-minute simple moving average
+    dplyr::glimpse(steps)
+    # Apply a 15-minute simple moving average
     level_ft <- zoo::rollmean(level_ft, steps, fill = NA)
   }else{ #15 minute interval
-    steps <- 1 
+    steps <- 1
   }
-  
-  #create dataframe of dtime_est and level, and discard NAs formed at the edges during the moving average
-  df <- data.frame(dtime_est, level_ft) %>% dplyr::filter(!is.na(level_ft))
-  
+  # Create dataframe of dtime and level, and discard NAs formed at the edges during the moving average
+  df <- data.frame(dtime, level_ft) %>% dplyr::filter(!is.na(level_ft))
+  # Round the point to 4 places
   last_point <- round(df$level_ft[length(df$level_ft)], 4)
   
-  test <- df %>% #Check if difference between level over x timesteps is less than 0.01ft
-    dplyr::mutate(lag_1 = dplyr::lag(level_ft, steps), 
-                  diffr = abs(level_ft - lag_1)) %>% 
-    dplyr::arrange(desc(dtime_est)) %>% 
+  # The last 1.25 hours of the time series
+  test <- df %>% 
+    dplyr::mutate(lag_1 = dplyr::lag(level_ft, steps),
+                  diffr = abs(level_ft - lag_1)) %>%
+    dplyr::arrange(desc(dtime)) %>%
     head(5)
-  
-  #0.25 in/hr or lower is considered "not infiltrating". This is converted to ft/(15 minutes)
+
+  # Convert max_infil_rain_inhr to ft/(15 minutes)
   depth_change <- max_infil_rate_inhr*1/12*15/60
-  
+
+  # Return last level_ft if the smallest of the last 1.25 hours of change in level is larger than the max_infil
   if(min(test$diffr, na.rm = TRUE) > depth_change){
     return(NA)
   }else{
     return(round(last_point, 4))
   }
-  
+
 }
 
 
 # marsInfiltrationRate_inhr ------------------------------------------
 #' Infiltration Rate 
 #' 
-#' Estimated infiltration rate based on observed data
+#' Estimated infiltration rate of a system based on observed data
 #' 
 #' @param  event                Rainfall event ID (grouping variable)
-#' @param  dtime_est            A vector of POSIXct date times, in ascending order
+#' @param  dtime                A vector of POSIXct date times, in ascending order
 #' @param  rainfall_in          Rainfall depths during periods corresponding to times in  dtime_est (in)
-#' @param  dcia_ft2             Directly connected impervious area (sf)
+#' @param  dcia_ft2             Subsurface Directly Connected Impervious Area (sf)
 #' @param  orifice_height_ft    Orifice height (ft)
 #' @param  orifice_diam_in      Orifice diameter (in)
 #' @param  storage_depth_ft     Maximum storage depth of system (ft)
 #' @param  storage_vol_ft3      Maximum storage volume (pore space) of system, in cubic feet
 #' @param  waterlevel_ft        Observed water level data (ft)
-#' @param  depth_in             Depth at which to calculate infiltration rate (default 6in, which creates a range of 7in to 5in)
+#' @param  depth_in             Depth at which to calculate infiltration rate (default 6in, which creates a range of 5in to 7in)
 #' @param  discharge_coeff      Orifice discharge coefficient (default 0.62)
 #' 
 #' @return Output is estimated infiltration rate (in/hr). These outputs are codes for the following messages: 
@@ -81,10 +86,10 @@ marsWaterLevelBaseline_ft <- function(dtime_est, level_ft, max_infil_rate_inhr =
 #' obs_250_fill %>%
 #'   dplyr::filter(is.na(event) == FALSE) %>%
 #'   dplyr::group_by(event) %>%
-#'   dplyr::arrange(dtime_est)%>%
+#'   dplyr::arrange(dtime)%>%
 #'   dplyr::summarize( #Calculate performance metrics
 #'     #Observed infiltration rate
-#'     Infiltration_Rate_inhr = marsInfiltrationRate_inhr(event, dtime_est,
+#'     Infiltration_Rate_inhr = marsInfiltrationRate_inhr(event, dtime,
 #'                                                rainfall_in,
 #'                                                dcia_ft2,
 #'                                                storage_depth_ft = storage_depth_ft,
@@ -94,142 +99,146 @@ marsWaterLevelBaseline_ft <- function(dtime_est, level_ft, max_infil_rate_inhr =
 #'                                                waterlevel_ft = level_ft))
 #' 
 
-marsInfiltrationRate_inhr <- function(event, #for warning messages
-                                              dtime_est,
-                                              rainfall_in, #for removing overlapping events
-                                              dcia_ft2, #directly connected impervious area
-                                              orifice_height_ft = NA, #default to NA if no orifice outlet
-                                              orifice_diam_in = NA, #default to NA if no orifice outlet
-                                              storage_depth_ft,
-                                              storage_vol_ft3,
-                                              waterlevel_ft, #observed data
-                                              depth_in = 6, #depth at which to take infiltration rate
-                                              discharge_coeff = 0.62 #Orifice discharge coefficient
-){
+marsInfiltrationRate_inhr <- function(event,
+                                      dtime,
+                                      rainfall_in,
+                                      dcia_ft2,
+                                      orifice_height_ft = NA,
+                                      orifice_diam_in = NA,
+                                      storage_depth_ft,
+                                      storage_vol_ft3,
+                                      waterlevel_ft,
+                                      depth_in = 6, 
+                                      discharge_coeff = 0.62) {
   
-  #1. Prepare data
-  #1.1 Initialize data frame
-  df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
+  # Initialize data frame
+  #### There is nothing making sure these inputs are the same size to create a tibble
+  df <- tibble::tibble(dtime,
                        rainfall_in,
-                       depth_ft = waterlevel_ft, #observed data
+                       # Why are we changing the name?
+                       depth_ft = waterlevel_ft, 
+                       # Why not calculate this first rather than have a zero?
                        vol_ft3 = 0,
-                       #runoff_ft3 = 0,
+                       # Why is this initialized at 0?
                        slow_release_ft3 = 0)
   
-  #1.2 Calculate volume
+  # Calculate volume
+  #### It is not a good practice to use functions with . as they are usually designated for methods
+  #### Why are storage depths and volume selecting the first column or object?
+  #### This depends on whether it's a vector, matrix, etc
   df$vol_ft3 <- depth.to.vol(maxdepth_ft = storage_depth_ft[1],
                                       maxvol_cf = storage_vol_ft3[1],
                                       depth_ft = df$depth_ft)
-  
-  #1.3 Calculate orifice flow
+  # Calculate orifice flow
   # If orifice dimensions are not provided, slow_release_ft = 0 (1.1)
   if(!is.na(orifice_diam_in[1])){
     df$slow_release_ft3 <- marsUnderdrainOutflow_cf(dtime_est,
                                                     waterlevel_ft,
                                                     orifice_height_ft,
                                                     orifice_diam_in)
-    
   }
-  
-  #1.4 get Final depth
+
+  # Get final depth
   last_depth <- df$depth_ft[length(df$depth_ft)]
   
-  #2. Identify times associated with 5" and 7" depths
+  # Identify times associated with 5" and 7" depths
   # Note: For this approach, the time at which the depth drops below the 5" or 7" threshold is identified
   # by working backwards through the dataset. The data is first filtered to remove subsequent peaks and
   # is then again filtered by the threshold. The last row (slice(n())) represents the timestep immediately
   # before the level drops below the threshold. This value may not represent the value closest to the
   # threshold, however, this approach ensures that the values are taken from receding limbs.
-  
+  #### Why are we doing it this way? We can easily pull the prior value with accuracy.
+
   last_depth5 <- df %>%
     dplyr::filter(depth_ft > (depth_in - 1)/12 + last_depth) %>% #value immediately prior to water level crossing 5"
     dplyr::slice(dplyr::n()) #latest timestep
-  
+
   last_depth7 <- df %>%
-    dplyr::filter(depth_ft > (depth_in + 1)/12 + last_depth) %>% #value immediately prior to water level crossing 7"
-    dplyr::slice(dplyr::n()) #latest timestep
-  
-  #2.4 Check that data is appropriate for calculating infiltration rate
-  #2.4.1 Do observation values exist in the dataset approximately equal to 5 and 7"?
+  dplyr::filter(depth_ft > (depth_in + 1)/12 + last_depth) %>% #value immediately prior to water level crossing 7"
+  dplyr::slice(dplyr::n()) #latest timestep
+
+  # Check that data is appropriate for calculating infiltration rate
   if(nrow(last_depth5)== 0 | nrow(last_depth7) == 0){
     message(paste("Event",event[1], "does not include observation data that approximately equals", depth_in - 1, "or", depth_in + 1, "in. of water depth."))
     return(-900)
   }
-  
-  #2.4.2 Does the 5" measurement occur after the 7"?
-  if(last_depth5$dtime_est == last_depth7$dtime_est){
+
+  # Does the 5" measurement occur after the 7"?
+  #### Does this do what we think it does?
+  if(last_depth5$dtime == last_depth7$dtime){
     message(paste0("Code does not capture descending limb in Event ", event[1], "."))
     return(-910)
   }
-  
-  #2.4.3 Establish temp series. Is last depth above 5" part of the same descending limb? Does rainfall occur during recession period?
+
+  # Establish temp series. Is last depth above 5" part of the same descending limb? Does rainfall occur during recession period?
   tempseries <- df %>%
-    dplyr::filter(dtime_est >= last_depth7$dtime_est & dtime_est <= last_depth5$dtime_est)
-  
-  #assure that the 5" depth used is within the same descending limb as the 7"
-  #following the last 7" measurement, level can dip and rise back above 5". This cuts off the dip and rise
+    # Filter results where the timestamp is >= 7" and <= 5?
+    dplyr::filter(dtime >= last_depth7$dtime & dtime <= last_depth5$dtime)
+  # Assure that the 5" depth used is within the same descending limb as the 7"
+  # The following the last 7" measurement, level can dip and rise back above 5". This cuts off the dip and rise
+  ##### Is this the same as <last_depth5$dtime?
+  ##### Not going to check this for now.
   if(min(tempseries$depth_ft) < (depth_in - 1)/12 + last_depth){
     
-    #select the first point where depth drops below 5"
+    # Select the first point where depth drops below 5"
     cutoff <- tempseries %>%
       dplyr::filter(depth_ft < (depth_in - 1)/12 + last_depth) %>%
       dplyr::slice(1)
-    
-    #cut tempseries
-    tempseries %<>% dplyr::filter(dtime_est < cutoff$dtime_est)
-    
-    #reassign last depth above 5"
+    # cut tempseries
+    tempseries %<>% dplyr::filter(dtime < cutoff$dtime)
+    # reassign last depth above 5"
     last_depth5 <- tempseries %>% dplyr::slice(dplyr::n())
   }
-  
   #check this again!
-  if(last_depth5$dtime_est == last_depth7$dtime_est){
+  #### Why?
+  if(last_depth5$dtime == last_depth7$dtime){
     message(paste0("Code does not capture descending limb in Event ", event[1], "."))
     return(-910)
   }
   
-  #2.4.4 Does significant ( > 0.05") amount of rainfall occur during the recession period between 7" and 5" (or whatever the specified range is)?
+  # Does significant ( > 0.05") amount of rainfall occur during the recession period between 7" and 5" (or whatever the specified range is)?
   if(sum(tempseries$rainfall_in, na.rm = TRUE) >= 0.05){
     message(paste0('Rainfall greater than 0.05 inches occurs during the recession period in Event ', event[1], '.'))
     return(-920)
   }
-  
-  #3. Calculate infiltration rate
-  
-  #3.1 Calculate total orifice flow
-  #3.1.1 make sure that orifice outflow does not exceed delta V at any timestep
+
+  # Calculate infiltration rate
+
+  # Calculate total orifice flow
+  # Make sure that orifice outflow does not exceed delta V at any timestep
   #sensor noise sometimes causes delta V to go the wrong direction, so that is evened out to zero
-  tempseries %<>% dplyr::mutate(slow_release_check = dplyr::case_when(is.na(dplyr::lead(vol_ft3)) ~ slow_release_ft3,
+  tempseries %<>% 
+    dplyr::mutate(slow_release_check = dplyr::case_when(is.na(dplyr::lead(vol_ft3)) ~ slow_release_ft3,
                                                         vol_ft3 - dplyr::lead(vol_ft3) < 0 ~ 0,
                                                         TRUE ~ pmin(slow_release_ft3,(vol_ft3 - dplyr::lead(vol_ft3)))))
-  
-  
+
+
   total_orifice_ft3 <- sum(tempseries$slow_release_check, na.rm = TRUE)
-  
-  #3.2 Calculate total change storage
+
+  # Calculate total change storage
   change_storage_ft3 <- tempseries$vol_ft3[1] - tempseries$vol_ft3[nrow(tempseries)] - total_orifice_ft3
   
   change_depth_in <- vol.to.depth(maxdepth_ft = storage_depth_ft,
                                   maxvol_cf = storage_vol_ft3,
                                   vol_cf = change_storage_ft3)*12
-  
-  #3.3 Calculate infiltration
+
+  # Calculate infiltration
   infiltration_rate_inhr <- round(change_depth_in/ #inches
-                                    as.numeric(difftime(last_depth5$dtime_est, last_depth7$dtime_est, units = "hours")),3)
-  
+                                    as.numeric(difftime(last_depth5$dtime, last_depth7$dtime, units = "hours")), 3)
+
   if(infiltration_rate_inhr < 0.1){
-    message(paste0("Infiltration rate is negligible in Event ", event[1], ".")) 
+    message(paste0("Infiltration rate is negligible in Event ", event[1], "."))
     return(-930)
   }
   
-  return(round(infiltration_rate_inhr, 4))
+  infiltration_rate_inhr
   
 }
 
 # Observed Orifice Outflow Volume -------------------------------------------
 #Description of the arguments:
 
-#IN:  dtime_est            A vector of POSIXct date times, in ascending order
+#IN:  dtime           A vector of POSIXct date times, in ascending order
 #IN:  waterlevel_ft        Observed water level data, in feet
 #IN:  orifice_height_ft    Orifice height, in feet
 #IN:  orifice_diam_in      Orifice diameter, in inches
@@ -241,13 +250,13 @@ marsInfiltrationRate_inhr <- function(event, #for warning messages
 #' 
 #' Total observed orifice outflow volume (cf)
 #' 
-#' @param  dtime_est            A vector of POSIXct date times, in ascending order
+#' @param  dtime            A vector of POSIXct date times, in ascending order
 #' @param  waterlevel_ft        Observed water level data (ft)
 #' @param  orifice_height_ft    Orifice height (ft)
 #' @param  orifice_diam_in      Orifice diameter (in)
 #' @param  discharge_coeff      Orifice discharge coefficient
 #' 
-#' @return Output is total observed orifice outflow volume (cf)
+#' @return Output is total observed orifice outflow volume (cf) 
 #' 
 #' @seealso \code{\link{marsInfiltrationRate_inhr}}
 #' 
@@ -274,43 +283,39 @@ marsInfiltrationRate_inhr <- function(event, #for warning messages
 #' 
 #' 
 
-marsUnderdrainOutflow_cf <- function(dtime_est, 
+marsUnderdrainOutflow_cf <- function(dtime, 
                                      waterlevel_ft, 
                                      orifice_height_ft,
                                      orifice_diam_in,
-                                     #DEFAULT VALUES
-                                     discharge_coeff = 0.62){ #Orifice discharge coefficient
+                                     discharge_coeff = 0.62){
   
-  #1. Prepare data
-  #1.1 Initialize data frame
-  df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
-                       depth_ft = waterlevel_ft)#, #observed data
-  #elapsed_time_hr = 0, 
-  #WL_above_orifice_ft = 0,
-  #slow_release_vol_ft3 = 0) 
+  # Prepare data
+  # Initialize data frame
+  df <- tibble::tibble(dtime = dtime,
+                       # Why do we change the name?
+                       depth_ft = waterlevel_ft)
   
-  #2. Calculate Orifice Outflow
-  # Orifice equation:
+  # Calculate Orifice Outflow
   # Q_orifice = C * Area * sqrt(2 * gravity * depth) * time
   
-  #2.1 Calculate area of orifice (ft2)
+  # Calculate area of orifice (ft2)
   orifice_area_ft2 <- pi*((orifice_diam_in[1]/12)^2)/4 #area of orifice (ft2)
   
   df <- df %>%
     dplyr:: mutate(#2.2 calculate elapsed time (hrs) 
-      elapsed_time_hr = difftime(dtime_est, dplyr::lag(dtime_est), units = "hours"), #difftime(lead(dtime_est), dtime_est, units = "hours"),
-      
-      #2.3 Calculate height of water above orifice (ft)
+      elapsed_time_hr = difftime(dtime, dplyr::lag(dtime), units = "hours"),
+      # Calculate height of water above orifice (ft)
       WL_above_orifice_ft = depth_ft - orifice_height_ft[1],
       
-      #2.4 Set height of water to 0 if below elevation of orifice
+      # Set height of water to 0 if below elevation of orifice
       WL_correction = ifelse(WL_above_orifice_ft < 0,0, WL_above_orifice_ft),
       
-      #2.4 Calculate total discharge through orifice
+      # Calculate total discharge through orifice
       slow_release_ft3 = discharge_coeff*
         orifice_area_ft2*
-        sqrt(2 * 32.2 * WL_correction) * 
-        60*60 * #convert cfs to cfhr     
+        sqrt(2 * 32.2 * WL_correction) *
+        #convert cfs to cfhr  
+        60*60 *    
         as.numeric(elapsed_time_hr))
   
   
@@ -352,36 +357,13 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 }
 
 # marsSimulatedLevelSeries_ft -------------------------------------------------
-# NOTES: Based on a time series simulation function written by Taylor Heffernan (4/5/2018) and Dwayne Myers (6/13/2018), modified by Katie Swanson (March 2019), then modified by Nick Manna (July 2019)
-#        Function generates simulated water level in subsurface stormwater infiltration tank with underdrain (orifice outlet)
-#        Updated to include option for orifice flow.
-
-#Description of the arguments:
-
-#IN:  dtime_est               A vector of POSIXct date times, in ascending order
-#IN:  rainfall_in             Rainfall depths during periods corresponding to times in  dtime_est, in inches
-#IN:  event                   A vector of Event IDs
-#IN:  infil_footprint_ft2     Total area of the system that is open to infiltration, in square feet
-#IN:  dcia_ft2                Directly connected impervious area, in square feet
-#IN:  orifice_height_ft       Orifice height, in feet (NA if no orifice outlet)
-#IN:  orifice_diam_in         Orifice diameter, in inches (NA if no orifice outlet)
-#IN:  storage_depth_ft        Maximum storage depth, in feet
-#IN:  storage_vol_ft3         Maximum storage volume (pore space), in cubic feet
-#IN:  infil_rate_inhr         System design infiltration rate, in inches per hour
-#IN:  initial_water_level_ft  Initial water Level, in feet (Default = 0)
-#IN:  runoff_coeff            Rational method coefficient (Default = 1)
-#IN:  discharge_coeff         Orifice discharge coefficient (Defauly = 0.62)
-
-
-#OUT: Dataframe of the following columns: dtime_est, rainfall_in, event, Simulated_depth_ft, Simulated_vol_ft3, Simulated_orifice_vol_ft3
-
 #' Simulated Water Level
 #' 
 #' Simulates water level in subsurface stormwater infiltration system with underdrain.
 #' Note: This version of the package targets the PG12 database, and simulating rain gage events is deprecated. The rain event variable name is hard-coded to the radar IDs.
 #' 
-#' @param  dtime_est               A vector of POSIXct date times, in ascending order
-#' @param  rainfall_in             Rainfall depths during periods corresponding to times in  dtime_est (in)
+#' @param  dtime_est                   A vector of POSIXct date times, in ascending order
+#' @param  rainfall_in             Rainfall depths during periods corresponding to times in dtime (in)
 #' @param  event                   A vector of Event IDs
 #' @param  infil_footprint_ft2     Total area of the system that is open to infiltration (sf)
 #' @param  dcia_ft2                Directly connected impervious area (sf)
@@ -395,7 +377,7 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 #' @param  discharge_coeff         Orifice discharge coefficient (Default = 0.62)
 #' 
 #' 
-#' @return Output is a dataframe with the following columns: dtime_est, rainfall_in, radar_event_uid, simulated_depth_ft, simulated_vol_ft3, simulated_orifice_vol_ft3
+#' @return Output is a dataframe with the following columns: dtime, rainfall_in, radar_event_uid, simulated_depth_ft, simulated_vol_ft3, simulated_orifice_vol_ft3
 #' 
 #' @seealso \code{\link{simulation.stats}}
 #' 
@@ -417,17 +399,16 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 marsSimulatedLevelSeries_ft <- function(dtime_est,
                                         rainfall_in,
                                         event,
-                                        infil_footprint_ft2, #footprint of the SMP that is open to infiltration
-                                        dcia_ft2, #directly connected impervious area
-                                        orifice_height_ft = NA, #default to NA if no orifice outlet
-                                        orifice_diam_in = NA, #default to NA if no orifice outlet
+                                        infil_footprint_ft2,
+                                        dcia_ft2, 
+                                        orifice_height_ft = NA,
+                                        orifice_diam_in = NA,
                                         storage_depth_ft,
                                         storage_vol_ft3,
-                                        infil_rate_inhr = 0.06, #New default based on Compliance guidance
-                                        #default values
+                                        infil_rate_inhr = 0.06,
                                         initial_water_level_ft = 0, 
-                                        runoff_coeff = 1, #rational method coefficient
-                                        discharge_coeff = 0.62 #Orifice discharge coefficient
+                                        runoff_coeff = 1, 
+                                        discharge_coeff = 0.62
 ){ 
   
   #Data Validation 
@@ -455,14 +436,12 @@ marsSimulatedLevelSeries_ft <- function(dtime_est,
     infil_rate_inhr <- 0.06 #Overload existing snapshots
   }
     
- # browser()
-
-  
-  
-  #Prepare data
   #Initialize data frames
+  #### We don't check to see if these are the same size before combining.
+  #### I'm guessing the event id vector needs to match the rainfall exactly or else recycling will mess things up.
   collected_data <- data.frame(dtime_est, rainfall_in, event)
   
+  #### Not checked
   if(length(initial_water_level_ft) > 1){
     events <- unique(event)
     events <- events[!is.na(events)]
@@ -470,47 +449,47 @@ marsSimulatedLevelSeries_ft <- function(dtime_est,
     collected_data <- collected_data %>% dplyr::left_join(events_initial, by = c("event" = "events"))
   }
   
-  simseries_total <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
+  simseries_total <- tibble::tibble(dtime_est,
                                     rainfall_in = 0, 
                                     event = 0,
                                     depth_ft = 0, 
                                     vol_ft3 = 0,
                                     runoff_ft3 = 0,
                                     slow_release_ft3 = 0,
-                                    infiltration_ft3 = 0, #POTENTIAL infiltration
+                                    infiltration_ft3 = 0,
                                     end_vol_ft3 = 0) 
   simseries_total <- simseries_total[0,]
   unique_events <- unique(collected_data$event) #vector of unique event IDs
   unique_events <- unique_events[!is.na(unique_events)]
   infil_rate_inhr[is.na(infil_rate_inhr)] <- 0
-  
-  #if statements
+
+  # Calculate area if there is an orifice
   orifice_if <- is.na(orifice_diam_in[1]) == FALSE
   if(orifice_if){
     orifice_area_ft2 <- pi*((orifice_diam_in[1]/12)^2)/4
   }
   
-  #split data into list of dataframes, one for each event
+  # Split data into list of dataframes, one for each event
+  #### I think this would be easier to work with one event and then combine things afterwards
   collected_data <- split(collected_data, collected_data$event)
-  
+
   #apply the function "sim_loop" to each dataframe in the list "collected data". This is in lieu of a for loop
   simseries_total <- lapply(collected_data, sim_loop, debug, simseries_total, infil_rate_inhr, orifice_if, orifice_area_ft2, infil_footprint_ft2, dcia_ft2, orifice_height_ft, orifice_diam_in, storage_depth_ft, storage_vol_ft3, initial_water_level_ft, runoff_coeff, discharge_coeff)
-  
+
   #take the output of the lapply, a list of dataframes, and bind rows into one dataframe
   simseries_total <- dplyr::bind_rows(simseries_total)
-  
+
   #Series returns a data frame including water depth #may be updated
   simseries_total <- simseries_total %>% dplyr::select("dtime_est", "rainfall_in", "event", "depth_ft", "vol_ft3", "slow_release_ft3")
   simseries_total$dtime_est %<>% lubridate::force_tz("EST")
-  colnames(simseries_total) <- c("dtime_est", 
-                                 "rainfall_in", 
-                                 "radar_event_uid", 
-                                 "simulated_depth_ft", 
-                                 "simulated_vol_ft3", 
+  colnames(simseries_total) <- c("dtime_est",
+                                 "rainfall_in",
+                                 "radar_event_uid",
+                                 "simulated_depth_ft",
+                                 "simulated_vol_ft3",
                                  "simulated_orifice_vol_ft3")
-  
+
   return(simseries_total)
-  
 }
 
 
@@ -785,16 +764,9 @@ marsPeakStorage_percent <- function(waterlevel_ft, storage_depth_ft){
 
 
 # Peak Release Rate -----------------------------------------------
-#Description of the arguments:
-
-#IN:  dtime_est             A vector of POSIXct date times, in ascending order
-#IN:  orifice_outflow_ft3   Orifice outflow volume, in cubic feet
-
-#OUT: Peak orifice release rate, in cfs
-
 #' @rdname simulation.stats
 #' 
-#' @param dtime_est A vector of POSIXct date times, in ascending order
+#' @param dtime A vector of POSIXct date times, in ascending order
 #' @param orifice_outflow_ft3 Orifice outflow volume (cf)
 #' 
 #' @return \describe{
@@ -804,53 +776,45 @@ marsPeakStorage_percent <- function(waterlevel_ft, storage_depth_ft){
 #' @export
 
 
-marsPeakReleaseRate_cfs <- function(dtime_est,
+marsPeakReleaseRate_cfs <- function(dtime,
                                     orifice_outflow_ft3){
+  #### No checks to make sure the vectors are same size
   
-  #1. Prepare data
-  #1.1 Initialize data frame
-  df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
+  # Prepare data
+  # Initialize data frame
+  df <- tibble::tibble(dtime,
+                       #### Why do we change the name here?
                        orifice_ft3 = orifice_outflow_ft3) 
   
-  #2. Calculate timestep and pull maximum value
+  # Calculate timestep and pull maximum value
   df_max <- df %>%
-    dplyr::mutate(elapsed_time_hr = difftime(dplyr::lead(dtime_est), dtime_est, units = "hours")) %>%
+    dplyr::mutate(elapsed_time_hr = difftime(dplyr::lead(dtime), dtime, units = "hours")) %>%
     dplyr::filter(is.na(orifice_ft3) == FALSE) %>%
     dplyr::arrange(orifice_ft3) %>%
     dplyr::slice(dplyr::n()) #pull row containing max orifice volume
-  
-  #3. Calculate peak rate
-  #3.1 Check that outflow data is not NA
+
+  # Calculate peak rate or return NA if there is no max outflow
+  #### Why are we waiting until this point to determine this?
   if(nrow(df_max) == 0){
     rate <- NA
-  }else{
-    
-    #3.2 Calculate rate
+  } else {
+    #### This breaks if the largest outflow is at the end of the series
+    #### The last value is going to be NA because it's elapsed and you can't divide by NA
     rate <- df_max$orifice_ft3/
-      as.numeric(df_max$elapsed_time_hr*60*60) #hr converted to seconds 
+      as.numeric(df_max$elapsed_time_hr*60*60) #hr converted to seconds
   }
-  
-  #4. Round to 4 digits
+  # Round to 4 digits
   rate <- round(rate, 4)
-  
-  return(rate)
 }
 
 
 # Draindown ---------------------------------------------------------------
-#Description of the arguments:
-
-#IN:  dtime_est        A vector of POSIXct date times, in ascending order
-#IN:  rainfall_in      Rainfall depths during periods corresponding to times in  dtime_est, in inches
-#IN:  waterlevelt_ft   Water level, in feet
-
-# OUT:  Calculated Draindown time, in hours
-
 #' @rdname simulation.stats
 #' 
-#' @param dtime_est A vector of POSIXct date times, in ascending order
-#' @param rainfall_in Rainfall depths during periods corresponding to times in  dtime_est (in)
-#' 
+#' @param dtime A vector of POSIXct date times, in ascending order
+#' @param rainfall_in Rainfall depths during periods corresponding to times in  dtime (in)
+#' @param waterlevel_ft Vector of water levels that corresponds to dtime vector
+#'
 #' @return \describe{
 #'      \item{\code{marsDraindown_hr}}{Output is Calculated Draindown time (hr). Returns \code{NA} if water level does not return to the starting level after event.}
 #' \describe{
@@ -865,72 +829,79 @@ marsPeakReleaseRate_cfs <- function(dtime_est,
 #' @export
 #' 
 
-marsDraindown_hr <- function(dtime_est, rainfall_in, waterlevel_ft){
-  
-  #1. Process data
-  #1.1 Initialize dataframe
-  dtime_est <- lubridate::force_tz(dtime_est, tz = "EST")
-  
+marsDraindown_hr <- function(dtime, rainfall_in, waterlevel_ft){
+  #### We should probably check to make sure dtime is in ascending order.
+  # Process data
   starting_level_ft <- dplyr::first(waterlevel_ft)
-  
+  # Put data into a tibble
+  #### We may just want to have a gettter function return these based on a dtime range
   combined_data <- tibble::tibble(
-    dtime_est = dtime_est,
+    dtime = dtime,
     rainfall_in = rainfall_in,
     waterlevel_ft  = waterlevel_ft)
   
-  #2. Confirm that there was a response in the structure during the event (water level >= 0.1)
+  # Confirm that there was a response in the structure during the event (water level >= 0.1)
   check <- any(waterlevel_ft > starting_level_ft + 0.1)  
-  
+
   if(check == FALSE){
     return(-810)
   }
-  
-  #2.1 Confirm that there is a 'baseline' where water level returns after peak
-  baseline_ft <- pwdgsi::marsWaterLevelBaseline_ft(dtime_est = dtime_est, level_ft = waterlevel_ft)
-  
+
+  # Confirm that there is a 'baseline' where water level returns after peak
+  #### The baseline returned from the baseline function is determined by the last value of the series.
+  #### I'm not sure how this would help.
+  baseline_ft <- marsWaterLevelBaseline_ft(dtime = dtime, level_ft = waterlevel_ft)
+
   if(is.na(baseline_ft)){
     return(-820)
   }
-  
-  #2.2 find time at which peak occurs
-  peak_time <- combined_data$dtime_est[which.max(combined_data$waterlevel_ft)]
-  
-  #3. Filter by storage depth to get the last time above baseline 
+
+  # Find time at which peak occurs
+  peak_time <- combined_data$dtime[which.max(combined_data$waterlevel_ft)]
+
+  # Filter by storage depth to get the last time above baseline
   # in this case we are finding the first time after peak but above baseline + 0.01, which should prevent us from capturing a flat-ish tail
   stor_end_time <- combined_data %>%
-    dplyr::filter(dtime_est > peak_time) %>%
+    # Filter obs where dtime is after the peak time
+    dplyr::filter(dtime > peak_time) %>%
+    # Filter where water_level is lower than the baseline + 0.1
     dplyr::filter(waterlevel_ft < baseline_ft + 0.1) %>%
-    dplyr::arrange(dtime_est) %>%
-    dplyr::slice(1L) 
-  
-  #3.1 see if there is an increase in water level during the descending limb
+    dplyr::arrange(dtime) %>%
+    dplyr::slice(1L)
+
+  # See if there is an increase in water level during the descending limb
   increase <- combined_data %>%
-    dplyr::mutate(waterlevel_ft = zoo::rollmean(waterlevel_ft, 3, fill = NA)) %>% 
-    dplyr::filter(dtime_est > peak_time) %>% 
-    dplyr::filter(dtime_est < stor_end_time$dtime_est) %>%
-    dplyr::mutate(check_increase = dplyr::case_when(difftime(dplyr::lead(dtime_est, 12), dtime_est, units = "hours") == 1 & 
-                                                      dplyr::lead(waterlevel_ft, 12) > waterlevel_ft + 0.1 ~ TRUE, 
-                                                    dplyr::lead(waterlevel_ft, 4) > waterlevel_ft + 0.1 ~ TRUE,
-                                                    TRUE ~ FALSE))
-  
+    # Find the rolling mean of waterlevel
+    dplyr::mutate(waterlevel_ft = zoo::rollmean(waterlevel_ft, 3, fill = NA)) %>%
+    # Filter obs after peak time
+    dplyr::filter(dtime > peak_time) %>%
+    # Filter obs before the second to last level
+   dplyr::filter(dtime < stor_end_time$dtime) %>%
+   dplyr::mutate(check_increase = dplyr::case_when(difftime(dplyr::lead(dtime, 12), dtime, units = "hours") == 1 &
+                                                     dplyr::lead(waterlevel_ft, 12) > waterlevel_ft + 0.1 ~ TRUE,
+                                                   dplyr::lead(waterlevel_ft, 4) > waterlevel_ft + 0.1 ~ TRUE,
+                                                   TRUE ~ FALSE))
+
   if(sum(increase$check_increase == TRUE) > 2){
     return(-830)
   }
-  
-  
-  #4. Assure that water level dropped below baseline + 0.01 (i think it has to right?)
+
+
+  # Assure that water level dropped below baseline + 0.01 (i think it has to right?)
+  #### If the baseline is the last value in a timeseries, then this should always be the baseline
+  #### Shouldn't this be if it drops below baseline + 0.1 based on the the code above?
   if(nrow(stor_end_time) > 0){
     #4.1 Calculate draindown time
-    draindown_hrs <- difftime(stor_end_time$dtime_est, peak_time, units = "hours")
-    
+    draindown_hrs <- difftime(stor_end_time$dtime, peak_time, units = "hours")
+
     #4.2 Round to 4 digits
     draindown_hrs <- round(draindown_hrs,4)
-    
+
     return(as.double(draindown_hrs))
-    
+
   }else{
     return(-840)
-    
+
   }
   
 }
