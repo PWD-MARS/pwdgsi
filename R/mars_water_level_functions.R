@@ -362,7 +362,7 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 #' Simulates water level in subsurface stormwater infiltration system with underdrain.
 #' Note: This version of the package targets the PG12 database, and simulating rain gage events is deprecated. The rain event variable name is hard-coded to the radar IDs.
 #' 
-#' @param  dtime                   A vector of POSIXct date times, in ascending order
+#' @param  dtime_est                   A vector of POSIXct date times, in ascending order
 #' @param  rainfall_in             Rainfall depths during periods corresponding to times in dtime (in)
 #' @param  event                   A vector of Event IDs
 #' @param  infil_footprint_ft2     Total area of the system that is open to infiltration (sf)
@@ -396,7 +396,7 @@ depth.to.vol <- function(maxdepth_ft, maxvol_cf, depth_ft){
 #' 
 #' @export
 
-marsSimulatedLevelSeries_ft <- function(dtime,
+marsSimulatedLevelSeries_ft <- function(dtime_est,
                                         rainfall_in,
                                         event,
                                         infil_footprint_ft2,
@@ -439,7 +439,7 @@ marsSimulatedLevelSeries_ft <- function(dtime,
   #Initialize data frames
   #### We don't check to see if these are the same size before combining.
   #### I'm guessing the event id vector needs to match the rainfall exactly or else recycling will mess things up.
-  collected_data <- data.frame(dtime, rainfall_in, event)
+  collected_data <- data.frame(dtime_est, rainfall_in, event)
   
   #### Not checked
   if(length(initial_water_level_ft) > 1){
@@ -449,7 +449,7 @@ marsSimulatedLevelSeries_ft <- function(dtime,
     collected_data <- collected_data %>% dplyr::left_join(events_initial, by = c("event" = "events"))
   }
   
-  simseries_total <- tibble::tibble(dtime,
+  simseries_total <- tibble::tibble(dtime_est,
                                     rainfall_in = 0, 
                                     event = 0,
                                     depth_ft = 0, 
@@ -490,7 +490,6 @@ marsSimulatedLevelSeries_ft <- function(dtime,
                                  "simulated_orifice_vol_ft3")
 
   return(simseries_total)
-  # 
 }
 
 
