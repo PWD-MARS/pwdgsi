@@ -764,16 +764,9 @@ marsPeakStorage_percent <- function(waterlevel_ft, storage_depth_ft){
 
 
 # Peak Release Rate -----------------------------------------------
-#Description of the arguments:
-
-#IN:  dtime_est             A vector of POSIXct date times, in ascending order
-#IN:  orifice_outflow_ft3   Orifice outflow volume, in cubic feet
-
-#OUT: Peak orifice release rate, in cfs
-
 #' @rdname simulation.stats
 #' 
-#' @param dtime_est A vector of POSIXct date times, in ascending order
+#' @param dtime A vector of POSIXct date times, in ascending order
 #' @param orifice_outflow_ft3 Orifice outflow volume (cf)
 #' 
 #' @return \describe{
@@ -783,53 +776,45 @@ marsPeakStorage_percent <- function(waterlevel_ft, storage_depth_ft){
 #' @export
 
 
-marsPeakReleaseRate_cfs <- function(dtime_est,
+marsPeakReleaseRate_cfs <- function(dtime,
                                     orifice_outflow_ft3){
+  #### No checks to make sure the vectors are same size
   
-  #1. Prepare data
-  #1.1 Initialize data frame
-  df <- tibble::tibble(dtime_est = lubridate::force_tz(dtime_est, tz = "EST"),
+  # Prepare data
+  # Initialize data frame
+  df <- tibble::tibble(dtime,
+                       #### Why do we change the name here?
                        orifice_ft3 = orifice_outflow_ft3) 
   
-  #2. Calculate timestep and pull maximum value
+  # Calculate timestep and pull maximum value
   df_max <- df %>%
-    dplyr::mutate(elapsed_time_hr = difftime(dplyr::lead(dtime_est), dtime_est, units = "hours")) %>%
+    dplyr::mutate(elapsed_time_hr = difftime(dplyr::lead(dtime), dtime, units = "hours")) %>%
     dplyr::filter(is.na(orifice_ft3) == FALSE) %>%
     dplyr::arrange(orifice_ft3) %>%
     dplyr::slice(dplyr::n()) #pull row containing max orifice volume
-  
-  #3. Calculate peak rate
-  #3.1 Check that outflow data is not NA
+
+  # Calculate peak rate or return NA if there is no max outflow
+  #### Why are we waiting until this point to determine this?
   if(nrow(df_max) == 0){
     rate <- NA
-  }else{
-    
-    #3.2 Calculate rate
+  } else {
+    #### This breaks if the largest outflow is at the end of the series
+    #### The last value is going to be NA because it's elapsed and you can't divide by NA
     rate <- df_max$orifice_ft3/
-      as.numeric(df_max$elapsed_time_hr*60*60) #hr converted to seconds 
+      as.numeric(df_max$elapsed_time_hr*60*60) #hr converted to seconds
   }
-  
-  #4. Round to 4 digits
+  # Round to 4 digits
   rate <- round(rate, 4)
-  
-  return(rate)
 }
 
 
 # Draindown ---------------------------------------------------------------
-#Description of the arguments:
-
-#IN:  dtime_est        A vector of POSIXct date times, in ascending order
-#IN:  rainfall_in      Rainfall depths during periods corresponding to times in  dtime_est, in inches
-#IN:  waterlevelt_ft   Water level, in feet
-
-# OUT:  Calculated Draindown time, in hours
-
 #' @rdname simulation.stats
 #' 
-#' @param dtime_est A vector of POSIXct date times, in ascending order
-#' @param rainfall_in Rainfall depths during periods corresponding to times in  dtime_est (in)
-#' 
+#' @param dtime A vector of POSIXct date times, in ascending order
+#' @param rainfall_in Rainfall depths during periods corresponding to times in  dtime (in)
+#' @param waterlevel_ft Vector of water levels that corresponds to dtime vector
+#'
 #' @return \describe{
 #'      \item{\code{marsDraindown_hr}}{Output is Calculated Draindown time (hr). Returns \code{NA} if water level does not return to the starting level after event.}
 #' \describe{
@@ -844,72 +829,79 @@ marsPeakReleaseRate_cfs <- function(dtime_est,
 #' @export
 #' 
 
-marsDraindown_hr <- function(dtime_est, rainfall_in, waterlevel_ft){
-  
-  #1. Process data
-  #1.1 Initialize dataframe
-  dtime_est <- lubridate::force_tz(dtime_est, tz = "EST")
-  
+marsDraindown_hr <- function(dtime, rainfall_in, waterlevel_ft){
+  #### We should probably check to make sure dtime is in ascending order.
+  # Process data
   starting_level_ft <- dplyr::first(waterlevel_ft)
-  
+  # Put data into a tibble
+  #### We may just want to have a gettter function return these based on a dtime range
   combined_data <- tibble::tibble(
-    dtime_est = dtime_est,
+    dtime = dtime,
     rainfall_in = rainfall_in,
     waterlevel_ft  = waterlevel_ft)
   
-  #2. Confirm that there was a response in the structure during the event (water level >= 0.1)
+  # Confirm that there was a response in the structure during the event (water level >= 0.1)
   check <- any(waterlevel_ft > starting_level_ft + 0.1)  
-  
+
   if(check == FALSE){
     return(-810)
   }
-  
-  #2.1 Confirm that there is a 'baseline' where water level returns after peak
-  baseline_ft <- pwdgsi::marsWaterLevelBaseline_ft(dtime_est = dtime_est, level_ft = waterlevel_ft)
-  
+
+  # Confirm that there is a 'baseline' where water level returns after peak
+  #### The baseline returned from the baseline function is determined by the last value of the series.
+  #### I'm not sure how this would help.
+  baseline_ft <- marsWaterLevelBaseline_ft(dtime = dtime, level_ft = waterlevel_ft)
+
   if(is.na(baseline_ft)){
     return(-820)
   }
-  
-  #2.2 find time at which peak occurs
-  peak_time <- combined_data$dtime_est[which.max(combined_data$waterlevel_ft)]
-  
-  #3. Filter by storage depth to get the last time above baseline 
+
+  # Find time at which peak occurs
+  peak_time <- combined_data$dtime[which.max(combined_data$waterlevel_ft)]
+
+  # Filter by storage depth to get the last time above baseline
   # in this case we are finding the first time after peak but above baseline + 0.01, which should prevent us from capturing a flat-ish tail
   stor_end_time <- combined_data %>%
-    dplyr::filter(dtime_est > peak_time) %>%
+    # Filter obs where dtime is after the peak time
+    dplyr::filter(dtime > peak_time) %>%
+    # Filter where water_level is lower than the baseline + 0.1
     dplyr::filter(waterlevel_ft < baseline_ft + 0.1) %>%
-    dplyr::arrange(dtime_est) %>%
-    dplyr::slice(1L) 
-  
-  #3.1 see if there is an increase in water level during the descending limb
+    dplyr::arrange(dtime) %>%
+    dplyr::slice(1L)
+
+  # See if there is an increase in water level during the descending limb
   increase <- combined_data %>%
-    dplyr::mutate(waterlevel_ft = zoo::rollmean(waterlevel_ft, 3, fill = NA)) %>% 
-    dplyr::filter(dtime_est > peak_time) %>% 
-    dplyr::filter(dtime_est < stor_end_time$dtime_est) %>%
-    dplyr::mutate(check_increase = dplyr::case_when(difftime(dplyr::lead(dtime_est, 12), dtime_est, units = "hours") == 1 & 
-                                                      dplyr::lead(waterlevel_ft, 12) > waterlevel_ft + 0.1 ~ TRUE, 
-                                                    dplyr::lead(waterlevel_ft, 4) > waterlevel_ft + 0.1 ~ TRUE,
-                                                    TRUE ~ FALSE))
-  
+    # Find the rolling mean of waterlevel
+    dplyr::mutate(waterlevel_ft = zoo::rollmean(waterlevel_ft, 3, fill = NA)) %>%
+    # Filter obs after peak time
+    dplyr::filter(dtime > peak_time) %>%
+    # Filter obs before the second to last level
+   dplyr::filter(dtime < stor_end_time$dtime) %>%
+   dplyr::mutate(check_increase = dplyr::case_when(difftime(dplyr::lead(dtime, 12), dtime, units = "hours") == 1 &
+                                                     dplyr::lead(waterlevel_ft, 12) > waterlevel_ft + 0.1 ~ TRUE,
+                                                   dplyr::lead(waterlevel_ft, 4) > waterlevel_ft + 0.1 ~ TRUE,
+                                                   TRUE ~ FALSE))
+
   if(sum(increase$check_increase == TRUE) > 2){
     return(-830)
   }
-  
-  
-  #4. Assure that water level dropped below baseline + 0.01 (i think it has to right?)
+
+
+  # Assure that water level dropped below baseline + 0.01 (i think it has to right?)
+  #### If the baseline is the last value in a timeseries, then this should always be the baseline
+  #### Shouldn't this be if it drops below baseline + 0.1 based on the the code above?
   if(nrow(stor_end_time) > 0){
     #4.1 Calculate draindown time
-    draindown_hrs <- difftime(stor_end_time$dtime_est, peak_time, units = "hours")
-    
+    draindown_hrs <- difftime(stor_end_time$dtime, peak_time, units = "hours")
+
     #4.2 Round to 4 digits
     draindown_hrs <- round(draindown_hrs,4)
-    
+
     return(as.double(draindown_hrs))
-    
+
   }else{
     return(-840)
-    
+
   }
   
 }
