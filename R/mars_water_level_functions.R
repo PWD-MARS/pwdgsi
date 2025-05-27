@@ -22,7 +22,6 @@ marsWaterLevelBaseline_ft <- function(dtime, level_ft, max_infil_rate_inhr = 1){
   #### Should we be checking the the whole interval is the same?
   if(step_diff == 5){ # 5 minute interval
     steps <- 3
-    dplyr::glimpse(steps)
     # Apply a 15-minute simple moving average
     level_ft <- zoo::rollmean(level_ft, steps, fill = NA)
   }else{ #15 minute interval
