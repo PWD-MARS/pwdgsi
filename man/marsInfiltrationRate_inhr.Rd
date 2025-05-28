@@ -6,7 +6,7 @@
 \usage{
 marsInfiltrationRate_inhr(
   event,
-  dtime_est,
+  dtime,
   rainfall_in,
   dcia_ft2,
   orifice_height_ft = NA,
@@ -21,11 +21,11 @@ marsInfiltrationRate_inhr(
 \arguments{
 \item{event}{Rainfall event ID (grouping variable)}
 
-\item{dtime_est}{A vector of POSIXct date times, in ascending order}
+\item{dtime}{A vector of POSIXct date times, in ascending order}
 
 \item{rainfall_in}{Rainfall depths during periods corresponding to times in  dtime_est (in)}
 
-\item{dcia_ft2}{Directly connected impervious area (sf)}
+\item{dcia_ft2}{Subsurface Directly Connected Impervious Area (sf)}
 
 \item{orifice_height_ft}{Orifice height (ft)}
 
@@ -37,7 +37,7 @@ marsInfiltrationRate_inhr(
 
 \item{waterlevel_ft}{Observed water level data (ft)}
 
-\item{depth_in}{Depth at which to calculate infiltration rate (default 6in, which creates a range of 7in to 5in)}
+\item{depth_in}{Depth at which to calculate infiltration rate (default 6in, which creates a range of 5in to 7in)}
 
 \item{discharge_coeff}{Orifice discharge coefficient (default 0.62)}
 }
@@ -51,16 +51,16 @@ Output is estimated infiltration rate (in/hr). These outputs are codes for the f
  }
 }
 \description{
-Estimated infiltration rate based on observed data
+Estimated infiltration rate of a system based on observed data
 }
 \examples{
 obs_250_fill \%>\%
   dplyr::filter(is.na(event) == FALSE) \%>\%
   dplyr::group_by(event) \%>\%
-  dplyr::arrange(dtime_est)\%>\%
+  dplyr::arrange(dtime)\%>\%
   dplyr::summarize( #Calculate performance metrics
     #Observed infiltration rate
-    Infiltration_Rate_inhr = marsInfiltrationRate_inhr(event, dtime_est,
+    Infiltration_Rate_inhr = marsInfiltrationRate_inhr(event, dtime,
                                                rainfall_in,
                                                dcia_ft2,
                                                storage_depth_ft = storage_depth_ft,

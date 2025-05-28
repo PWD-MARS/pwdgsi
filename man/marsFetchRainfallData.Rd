@@ -24,13 +24,12 @@ marsFetchRainfallData(
 
 \item{end_date}{stringor POSIXCT date, format: "YYYY-MM-DD", end of data request range}
 
-\item{daylightsavings}{logi, Adjust for daylight savings time? when doing QAQC
-this should be \code{FALSE} because the water level data does not spring forwards.}
+\item{daylightsavings}{logi, for now, this should always be \code{FALSE}}
 }
 \value{
 Output will be a data frame with four columns, which corresponds to the specified SMP and date range:
 
-  \item{dtime_est OR dtime_edt}{POSIXct datetime with tz = EST or EDT as specified by \code{daylight_savings}}
+  \item{dtime}{POSIXct datetime in America/New_York}
   \item{rainfall_in}{num, rainfall for the 15 minute preceding the corresponding datetime}
   \item{gage_uid OR radar_uid}{Unique identifier for where the data came from}
   \item{event_id}{event number during this timestep}

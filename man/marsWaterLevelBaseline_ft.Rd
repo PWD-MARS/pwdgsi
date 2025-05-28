@@ -4,17 +4,17 @@
 \alias{marsWaterLevelBaseline_ft}
 \title{Water Level Baseline}
 \usage{
-marsWaterLevelBaseline_ft(dtime_est, level_ft, max_infil_rate_inhr = 1)
+marsWaterLevelBaseline_ft(dtime, level_ft, max_infil_rate_inhr = 1)
 }
 \arguments{
-\item{dtime_est}{A vector of POSIXct date times, in ascending order}
+\item{dtime}{A vector of POSIXct date times, in ascending order}
 
 \item{level_ft}{Observed water level data (ft)}
 
 \item{max_infil_rate_inhr}{default = 1; maximum infiltration rate at the end of the timeseries that will allow for a "baseline" to be considered}
 }
 \value{
-Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 15 minutes of the time series
+Output is either the last point in the dataset, or NA, if maximum infiltration rate is exceeded within the last 75 minutes of the time series
 }
 \description{
 Determine the level at which water level stabilizes following draindown

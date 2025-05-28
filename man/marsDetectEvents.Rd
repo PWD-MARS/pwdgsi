@@ -4,19 +4,19 @@
 \alias{marsDetectEvents}
 \title{Identify individual rainfall events}
 \usage{
-marsDetectEvents(dtime_est, rainfall_in, iet_hr = 6, mindepth_in = 0.1)
+marsDetectEvents(dtime, rainfall_in, iet_hr = 6, mindepth_in = 0.1)
 }
 \arguments{
-\item{dtime_est}{vector, POSIXct date times}
+\item{dtime}{vector, POSIXct date times}
 
-\item{rainfall_in}{vector, num, of rainfall depths corresponding to \code{dtime_est}, in inches}
+\item{rainfall_in}{vector, num, of rainfall depths corresponding to \code{dtime}, in inches}
 
 \item{iet_hr}{num, Interevent time, in hours. The default is 6 hours.}
 
 \item{mindepth_in}{num, minimum depth of a given event, in inches. The default is 0.10 inches.}
 }
 \value{
-Output will be a vector of integers corresponding to \code{dtime_est} and representing
+Output will be a vector of integers corresponding to \code{dtime} and representing
   the event ID for each time step.
 }
 \description{

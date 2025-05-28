@@ -10,16 +10,16 @@
 \usage{
 marsStormDepth_in(rainfall_in)
 
-marsStormDuration_hr(dtime_est)
+marsStormDuration_hr(dtime)
 
-marsStormPeakIntensity_inhr(dtime_est, rainfall_in)
+marsStormPeakIntensity_inhr(rainfall_in)
 
-marsStormAverageIntensity_inhr(dtime_est, rainfall_in)
+marsStormAverageIntensity_inhr(dtime, rainfall_in)
 }
 \arguments{
-\item{rainfall_in}{vector, num, rainfall depth in inches representing a single rain event}
+\item{rainfall_in}{Vector of rainfall_in for a given storm (in inches)}
 
-\item{dtime_est}{vector, POSIXct date times representing a single rain event}
+\item{dtime}{Vector of datetimes for a given storm}
 }
 \value{
 \describe{

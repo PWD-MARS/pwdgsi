@@ -4,10 +4,10 @@
 \alias{yday_decimal}
 \title{Fetch a decimal day from a datetime}
 \usage{
-yday_decimal(dtime_est)
+yday_decimal(dtime)
 }
 \arguments{
-\item{dtime_est}{POSIXct, format: "POSIXct, format: "YYYY-MM-DD HH:MM:SS""}
+\item{dtime}{POSIXct, format: "POSIXct, format: "YYYY-MM-DD HH:MM:SS""}
 }
 \value{
 Output with be a day with a decimal

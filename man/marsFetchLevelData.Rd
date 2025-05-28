@@ -14,7 +14,7 @@ marsFetchLevelData(
 )
 }
 \arguments{
-\item{con}{An ODBC connection to the MARS Analysis database returned by odbc::dbConnect}
+\item{con}{An connection to the MARS Analysis database returned}
 
 \item{target_id}{vector of chr, SMP ID, where the user has requested data}
 
@@ -30,7 +30,7 @@ marsFetchLevelData(
 Output will be a dataframe with the following columns: 
 
     \item{ow_leveldata_uid}{int}
-    \item{dtime_est}{POSIXct datetime}
+    \item{dtime}{POSIXct datetime in America/New_York}
     \item{level_ft}{num, recorded water level in feet}
     \item{ow_uid}{num, ow_uid derived from smp_id and ow_suffix}
 }

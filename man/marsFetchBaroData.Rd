@@ -26,17 +26,11 @@ marsFetchBaroData(
 \value{
 Output will be a dataframe with four columns: 
   
-    \item{dtime_est}{POSIXct, format: "YYYY-MM-DD HH:MM:SS"}
+    \item{dtime}{POSIXct, format: "YYYY-MM-DD HH:MM:SS" in America/New_York}
     \item{baro_psi}{num, barometric pressure in psi}
     \item{smp_id}{chr, SMP ID for each baro}
-    \item{neighbors}{num, count of baros interpolated from}
     
-    If the target SMP has an on-site baro with data, the "neighbors" column will be NA.
-    If there are fewer than five baros to interprolate from, based on \code{\link{marsInterpolateBaro}},
-    all columns other than "dtime_est" will be NA.
-    
-    The function will also output and open an html document describing the data request and including
-    a raster plot of barometric pressures. (This feature is currently disabled. 2/2/21 - NM)
+    If there are fewer than five baros to interprolate from, based on \code{\link{marsInterpolateBaro}}
 }
 \description{
 Returns a data frame with datetime, barometric pressure, smp id, and number of neighbors

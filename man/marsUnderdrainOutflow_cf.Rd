@@ -5,7 +5,7 @@
 \title{Observed Orifice Outflow Volume}
 \usage{
 marsUnderdrainOutflow_cf(
-  dtime_est,
+  dtime,
   waterlevel_ft,
   orifice_height_ft,
   orifice_diam_in,
@@ -13,7 +13,7 @@ marsUnderdrainOutflow_cf(
 )
 }
 \arguments{
-\item{dtime_est}{A vector of POSIXct date times, in ascending order}
+\item{dtime}{A vector of POSIXct date times, in ascending order}
 
 \item{waterlevel_ft}{Observed water level data (ft)}
 

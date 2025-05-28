@@ -40,19 +40,19 @@ marsFetchMonitoringData(
 
 \item{level}{logical, TRUE if water level should be included in result}
 
-\item{daylight_savings}{logical, Adjust for daylight savings time? when doing QAQC this should be FALSE because the water level data does not spring forward}
+\item{daylight_savings}{logical, WILL NOT WORK in current version}
 
 \item{debug}{logical, whether to print lookup times and outputs}
 }
 \value{
-Output will be a list consisting of a combination of the following:
+Output will be a list consisting of the follow elements filtered by level data:
 
     \item{Rain Event Data}{dataframe, output from \code{\link{marsFetchRainEventData}}}
     \item{Rain Gage Data}{dataframe, output from \code{\link{marsFetchRainfallData}}}
     \item{Level Data}{dataframe, output from \code{\link{marsFetchLevelData}}, plus rainfall_gage_event_uids}
 }
 \description{
-Returns a list with data frames with rain data and rain event data from the rain gage closest to the request SMP, and level data
+Returns a list with data frames: Rain Event Data, Rain Gage Data, and Level Data. All data is filtered based on available water level data.
 }
 \seealso{
 \code{\link{marsFetchRainfallData}}, \code{\link{marsFetchLevelData}}, \code{\link{marsFetchRainEventData}}

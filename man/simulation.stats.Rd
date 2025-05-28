@@ -12,20 +12,20 @@ marsOvertoppingCheck_bool(waterlevel_ft, storage_depth_ft)
 
 marsPeakStorage_percent(waterlevel_ft, storage_depth_ft)
 
-marsPeakReleaseRate_cfs(dtime_est, orifice_outflow_ft3)
+marsPeakReleaseRate_cfs(dtime, orifice_outflow_ft3)
 
-marsDraindown_hr(dtime_est, rainfall_in, waterlevel_ft)
+marsDraindown_hr(dtime, rainfall_in, waterlevel_ft)
 }
 \arguments{
-\item{waterlevel_ft}{Water Level (ft)}
+\item{waterlevel_ft}{Vector of water levels that corresponds to dtime vector}
 
 \item{storage_depth_ft}{Total storage Depth (ft)}
 
-\item{dtime_est}{A vector of POSIXct date times, in ascending order}
+\item{dtime}{A vector of POSIXct date times, in ascending order}
 
 \item{orifice_outflow_ft3}{Orifice outflow volume (cf)}
 
-\item{rainfall_in}{Rainfall depths during periods corresponding to times in  dtime_est (in)}
+\item{rainfall_in}{Rainfall depths during periods corresponding to times in  dtime (in)}
 }
 \value{
 \describe{
