@@ -63,7 +63,7 @@ marsRainfallPlot <- function(dtime, rainfall_in, event, reverse_y = FALSE) {
   # Shift dtime so column shows rainfall between interval
   rain_data$dtime <- rain_data$dtime - min_interval
   
-  #2. Calculate plotting parameters
+  # Calculate plotting parameters
   min_date <- min(rain_data$dtime, na.rm = TRUE)
   max_date <- max(rain_data$dtime, na.rm = TRUE)
   min_rain <- 0
