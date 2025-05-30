@@ -106,85 +106,87 @@ old_levelPlot <- function(event,
     marker_scale <- 0.015
     day_lengths <- 14
   }
+  marker_scale
   
   #2.2 Calculations for dashed vertical line at day boundaries
   day_strip <- lubridate::date(min_date)
   day_marker <- lubridate::force_tz(seq.POSIXt(as.POSIXlt(day_strip, tz = "EST"), by = "day", length.out = day_lengths), tz = "EST")
-  
+
   #2.4 Calculate axis breaks based on plotting limits
   #Select major x-axis breaks based on event duration (all extend observed record by 12 hours)
-  major_date_breaks <- lubridate::force_tz(seq.POSIXt(day_marker[1], max_date, by = "12 hours"), tz = "EST") 
-  
-  #All plots use one-hour interval for minor x-axis breaks
-  minor_date_breaks <- lubridate::force_tz(seq.POSIXt(day_marker[1] - lubridate::hours(12), max_date + lubridate::hours(6), by = "hour"), tz = "EST") 
-  
+  major_date_breaks <- lubridate::force_tz(seq.POSIXt(day_marker[1], max_date, by = "12 hours"), tz = "EST")
+
+  # #All plots use one-hour interval for minor x-axis breaks
+  minor_date_breaks <- lubridate::force_tz(seq.POSIXt(day_marker[1] - lubridate::hours(12), max_date + lubridate::hours(6), by = "hour"), tz = "EST")
+
   #2.5 Generate title block
   title_text <- paste0("Water Level\nSMP ID: ", structure_name,
                        " | Event: ", event[1],
-                       " | Start Date and Time: ", 
+                       " | Start Date and Time: ",
                        scales::date_format("%Y-%m-%d %H:%M", tz = "EST")(min_date),
                        sep = "")
-  
-  
+
+
   # Build dataframes
   obs_df <- data.frame(obs_datetime, obs_level_ft)
   
-  if(!is.na(sim_level_ft[1])){
-    sim_df <- data.frame(sim_datetime, sim_level_ft)
-  }
-  
+  # # We no longer use include sim functions in pwdgsi
+  # if(!is.na(sim_level_ft[1])){
+  #   sim_df <- data.frame(sim_datetime, sim_level_ft)
+  # }
+
   if(!is.na(level_ft_2[1])){
     obs2_df <- data.frame(datetime_2, level_ft_2)
   }
-  
+
   if(!is.na(level_ft_3[1])){
     obs3_df <- data.frame(datetime_3, level_ft_3)
   }
-  
+
   if(!is.na(level_ft_4[1])){
     obs4_df <- data.frame(datetime_4, level_ft_4)
   }
-  
+
   #3. Generate plot
   #3.1 Water Level (observed)
-  level_plot <- 
+  level_plot <-
     ggplot2::ggplot(data = obs_df) +
-    
+
     #Day boundaries
     ggplot2::geom_vline(xintercept = day_marker, color = "black", linetype = "dashed", linewidth = 1.2) + #date boundaries
-    
-    ggplot2::annotate("text", x = day_marker-marker_scale*event_duration, 
-                      y = 0.8*storage_depth_ft, 
-                      label = day_marker,
-                      angle = 90, 
-                      size = ggplot2::rel(5))+ #5
-    
-    #Warning message for data gaps in observed record
+
+  ggplot2::annotate("text", x = day_marker-marker_scale*event_duration,
+                    y = 0.8*storage_depth_ft,
+                    label = day_marker,
+                    angle = 90,
+                    size = ggplot2::rel(5))+ #5
+
+  #   #Warning message for data gaps in observed record
     ggplot2::annotate("text", x = day_marker[1]+1,
                       y = 0.5*storage_depth_ft,
                       label = warning_label, #empty if no warning
                       hjust = 0,
                       color = "red",
                       size = ggplot2::rel(5))+
-    
-    #Structure top and bottom
+
+  #   #Structure top and bottom
     ggplot2::geom_hline(yintercept = 0, color = "black", linewidth = 1.2)+ #bottom
-    
+
     ggplot2::geom_hline(yintercept = storage_depth_ft, color = "orange", linewidth = 1.2) + #top
-    
+
     ggplot2::geom_label(x = min_date + event_duration/4,
                         y = storage_depth_ft*1.04,
                         label = "Maximum Storage Depth",
                         size = ggplot2::rel(5),
                         fill = "white",
                         label.size = 0) +
-    # ggplot2::annotate(ggplot2::aes(x = min_date + event_duration/4, 
-    #                                  y = storage_depth_ft*1.04, 
+    # ggplot2::annotate(ggplot2::aes(x = min_date + event_duration/4,
+    #                                  y = storage_depth_ft*1.04,
     #                                  label = "Maximum Storage Depth"),
     #                     size = ggplot2::rel(5),
-    #                     fill = "white", 
+    #                     fill = "white",
     #                     label.size = 0) +
-    
+
     #Observed water level
     ggplot2::geom_line(data = obs_df,
                        ggplot2::aes(x = obs_datetime,
@@ -192,10 +194,10 @@ old_levelPlot <- function(event,
                                     color = paste(level_names[1])),
                        linewidth = 2
     ) +
-    
+
     #Formatting
     ggplot2::theme_bw() + # a basic black and white theme
-    
+
     ggplot2::scale_x_datetime(
       name = " ", # x axis label
       labels = scales::date_format("%H:%M", "EST"),
@@ -203,19 +205,19 @@ old_levelPlot <- function(event,
       breaks = major_date_breaks,
       minor_breaks = minor_date_breaks
     ) +
-    
-    ggplot2::scale_y_continuous(
-      breaks = seq(0, storage_depth_ft+1, by = if(storage_depth_ft > 2) round(storage_depth_ft/4, 0) else ceiling(storage_depth_ft/4)),
-      minor_breaks = seq(-0.5,2*storage_depth_ft, by = 0.1)
-    ) +
-    
+
+  ggplot2::scale_y_continuous(
+    breaks = seq(0, storage_depth_ft+1, by = if(storage_depth_ft > 2) round(storage_depth_ft/4, 0) else ceiling(storage_depth_ft/4)),
+    minor_breaks = seq(-0.5,2*storage_depth_ft, by = 0.1)
+  ) +
+
     ggplot2::scale_color_manual(values = c("#7822E0","#E0DE43","#E03838","#E12CE0","#16E050")) +
-    
+
     ggplot2::labs(
       y = "Water Level (ft)",
       title = title_text
     ) +
-    
+
     ggplot2::theme(
       #text = element_text(size = rel(2)), #size previously set to 16
       axis.title.y = ggplot2::element_text(size = ggplot2::rel(1.2), color = "black"),
@@ -228,9 +230,9 @@ old_levelPlot <- function(event,
       legend.position = "bottom", #format legend (to be compiled with rainfall plot in grid.arrange())
       legend.text = ggplot2::element_text(size = ggplot2::rel(.9)),
       legend.title=ggplot2::element_blank())
-  
+
   if(!is.na(sim_level_ft[1])){
-    level_plot <- level_plot +     
+    level_plot <- level_plot +
       #Simulated water level
       ggplot2::geom_line(data = sim_df,
                          ggplot2::aes(x = sim_datetime,
@@ -239,9 +241,9 @@ old_levelPlot <- function(event,
                          linewidth = 2
       )
   }
-  
+
   if(!is.na(level_ft_2[1])){
-    level_plot <- level_plot +     
+    level_plot <- level_plot +
       #Simulated water level
       ggplot2::geom_line(data = obs2_df,
                          ggplot2::aes(x = datetime_2,
@@ -251,7 +253,7 @@ old_levelPlot <- function(event,
       )
   }
   if(!is.na(level_ft_3[1])){
-    level_plot <- level_plot +     
+    level_plot <- level_plot +
       #Simulated water level
       ggplot2::geom_line(data = obs3_df,
                          ggplot2::aes(x = datetime_3,
@@ -261,7 +263,7 @@ old_levelPlot <- function(event,
       )
   }
   if(!is.na(level_ft_4[1])){
-    level_plot <- level_plot +     
+    level_plot <- level_plot +
       #Simulated water level
       ggplot2::geom_line(data = obs4_df,
                          ggplot2::aes(x = datetime_4,
@@ -270,20 +272,20 @@ old_levelPlot <- function(event,
                          linewidth = 2
       )
   }
-  
+
   if(orifice_show == TRUE){
-    level_plot <- level_plot + 
-      
+    level_plot <- level_plot +
+
       ggplot2::geom_hline(yintercept = orifice_plot, color = "grey", linetype = 2, linewidth = 1.2) +
       ggplot2::geom_label(label = orifice_lab,
                           y = orifice_height_ft*1.1,
                           x = obs_datetime[round(0.75*length(obs_datetime))])
-    
+
   }
-  
+
   # Add metrics
   if(metrics_show == TRUE){
-    
+
     #set missing values to ""
     if( missing(obs_draindown_hr) ){obs_draindown_hr <- ""}
     if( missing(sim_draindown_hr) ){sim_draindown_hr <- ""}
@@ -293,7 +295,7 @@ old_levelPlot <- function(event,
     if( missing(sim_RSPU) ){sim_RSPU <- ""}
     if( missing(obs_overtopping) ){obs_overtopping <- ""}
     if( missing(sim_overtopping) ){sim_overtopping <- ""}
-    
+
     level_plot %<>% marsMetricsTable( obs_RSPU = obs_RSPU,
                                       obs_infil_inhr = obs_infil_inhr,
                                       obs_draindown_hr = obs_draindown_hr,
@@ -303,7 +305,7 @@ old_levelPlot <- function(event,
                                       sim_draindown_hr = sim_draindown_hr,
                                       sim_overtopping = sim_overtopping)
   }
-  
+
   return(level_plot)
   
 }
