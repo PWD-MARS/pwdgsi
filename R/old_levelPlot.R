@@ -61,8 +61,8 @@ old_levelPlot <- function(event,
   }else{
     warning_label <- ""
   }
-  
-  
+
+
   #1.5
   #Check is orifice should be shown
   if(orifice_show == TRUE){
@@ -71,7 +71,7 @@ old_levelPlot <- function(event,
   }else{
     orifice_plot <- 0 #line will be covered by bottom of structure if option is not selected
   }
-  
+
   #1.6 set default names for levels if none are provided
   #### This is broken if more than 1 level is given (it's expecting a single value)
   if(is.na(level_names)){
@@ -80,13 +80,13 @@ old_levelPlot <- function(event,
                      "Obs. Level 3",
                      "Obs. Level 4")
   }
-  
+
   #2. Calculate plotting parameters
-  
-  #2.1 Calculate date plotting limits(x-axis) 
+
+  #2.1 Calculate date plotting limits(x-axis)
   #Calculate minimum and maximum data values
-  
-  
+
+
   if(!is.na(sim_level_ft[1])){
     min_date <- min(obs_datetime, sim_datetime, na.rm = TRUE)
     max_date <- max(obs_datetime, sim_datetime, na.rm = TRUE)
@@ -94,10 +94,10 @@ old_levelPlot <- function(event,
     min_date <- min(obs_datetime, na.rm = TRUE)
     max_date <- max(obs_datetime, na.rm = TRUE) #+ hours(6)
   }
-  
+
   #Calculate ranges in values to set axis breaks by category
   event_duration <- max_date - min_date
-  
+
   #set date marker offset by duration
   if(units(event_duration) == "days"){
     marker_scale <- 0.02
@@ -107,7 +107,7 @@ old_levelPlot <- function(event,
     day_lengths <- 14
   }
   marker_scale
-  
+
   #2.2 Calculations for dashed vertical line at day boundaries
   day_strip <- lubridate::date(min_date)
   day_marker <- lubridate::force_tz(seq.POSIXt(as.POSIXlt(day_strip, tz = "EST"), by = "day", length.out = day_lengths), tz = "EST")
@@ -129,7 +129,7 @@ old_levelPlot <- function(event,
 
   # Build dataframes
   obs_df <- data.frame(obs_datetime, obs_level_ft)
-  
+
   # # We no longer use include sim functions in pwdgsi
   # if(!is.na(sim_level_ft[1])){
   #   sim_df <- data.frame(sim_datetime, sim_level_ft)
