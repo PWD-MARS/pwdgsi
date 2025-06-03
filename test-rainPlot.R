@@ -1,6 +1,5 @@
 library(pool)
 
-# Test production db data 
 conn_old <- dbPool(
   drv = RPostgres::Postgres(),
   host = "PWDMARSDBS1",
@@ -10,12 +9,12 @@ conn_old <- dbPool(
   password = Sys.getenv("shiny_pwd"),
   timezone = NULL)
 
-old_mars <- old_smpSnap(conn_old, "1267-2-1", "CS1", "2024-03-27")
+rain <- old_rain(conn_old, "1267-2-1", "gage", "2024-03-27 15:15:00", "2024-03-28 04:30:00")
 
-pool::poolClose(conn_old)
+old_mars <- old_rainPlot(rain$dtime_est, rain$rainfall_in, rain$gage_event_uid[[1]])
 
+poolClose(conn_old)
 
-# sandbox_dtime data
 conn_sand <- dbPool(
   drv = RPostgres::Postgres(),
   host = "PWDMARSDBS1",
@@ -25,7 +24,8 @@ conn_sand <- dbPool(
   password = Sys.getenv("shiny_pwd"),
   timezone = NULL)
 
-new_mars <- marsFetchSMPSnapshot(conn_sand, "1267-2-1", "CS1", "2024-03-27")
+rain_new <- marsFetchRainfallData(conn_sand, "1267-2-1", "gage", "2024-03-27 15:15:00", "2024-03-28 04:30:00")
 
-pool::poolClose(conn_sand)
+new_mars <- marsRainfallPlot(rain_new$dtime, rain_new$rainfall_in, 38379)
 
+poolClose(conn_sand)
