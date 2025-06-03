@@ -1046,8 +1046,8 @@ marsEventCombinedPlot <- function(con,
 #' @export
 #' 
 #' @examples 
-#' marsSampleBaro_plot %<>% dplyr::mutate("day" = yday_decimal(marsSampleBaro_plot$dtime_est),
-#'                                "year" = lubridate::year(marsSampleBaro_plot$dtime_est))
+#' marsSampleBaro_plot %<>% dplyr::mutate("day" = yday_decimal(marsSampleBaro_plot$dtime),
+#'                                "year" = lubridate::year(marsSampleBaro_plot$dtime))
 #' marsBaroRasterPlot(marsSampleBaro_plot)
 #'
 
@@ -1077,8 +1077,8 @@ marsBaroRasterPlot <- function(baro){
 #'
 #' Return the gpglot object, with the metrics added to the object as a tableGrob annotation
 #'
-#' @param data                                dataframe, a data frame with a unique row each containing ow_uid, radar_event_uid, ow_suffix, eventdatastart_edt, smp_id, eventavgintensity_inhr, eventpeakintensity_inhr, eventdepth_in, and overtop
-#' @param design_storm                        num, a numeric value fro the design stomr in inches, see \code{marsFetchSMPSnapshot}
+#' @param data                                dataframe, a data frame with a unique row each containing ow_uid, radar_event_uid, ow_suffix, eventdatastart, smp_id, eventavgintensity_inhr, eventpeakintensity_inhr, eventdepth_in, and overtop
+#' @param design_storm                        num, a numeric value for the design storm in inches, see \code{marsFetchSMPSnapshot}
 #' @param event_dates                         date, a vector of dates to show up as major events in the monitoring locations history (maintenance, retrofit, etc.)
 #' @param event_descriptions                  char, a vector of strings corresponding to labels fo each major event on the plot (eg, "pipe jetting", "filter bag replaced") 
 #' 

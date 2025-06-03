@@ -415,6 +415,7 @@ marsOvertoppingCheck_bool <- function(waterlevel_ft, storage_depth_ft){
   waterlevel_ft <- waterlevel_ft[!is.na(waterlevel_ft)]
 
   # return error code if no data are available
+  #### These should throw an error seeing how we expect it to return T/F
   if(length(waterlevel_ft) == 0){
     return(-710)
   }
@@ -427,6 +428,8 @@ marsOvertoppingCheck_bool <- function(waterlevel_ft, storage_depth_ft){
   max_water_level <- max(waterlevel_ft, na.rm = TRUE)
   
   #3. Compare to max structure storage
+  #### Why are these in quotes?
+  #### Should there be a margin of error?
   check <- ifelse(max_water_level < storage_depth_ft, "FALSE", "TRUE")
   
   return(check)
