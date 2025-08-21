@@ -3,11 +3,11 @@ library(pool)
 # Test production db data 
 conn_old <- dbPool(
   drv = RPostgres::Postgres(),
-  host = "PWDMARSDBS1",
-  port = 5434,
-  dbname = "mars_data",
-  user= Sys.getenv("shiny_uid"),
-  password = Sys.getenv("shiny_pwd"),
+  host = "localhost",
+  port = 5432,
+  dbname = "sandbox",
+  user= "postgres",
+  password = "jontest",
   timezone = "EST")
 
 event <- marsFetchRainEventData(conn_old,
@@ -41,11 +41,11 @@ old_mars <- old_baseline(old_lvl_matched$dtime_est, old_lvl_matched$level_ft)
 # sandbox_dtime data
 conn_sand <- dbPool(
   drv = RPostgres::Postgres(),
-  host = "PWDMARSDBS1",
-  port = 5434,
-  dbname = "sandbox_dtime",
-  user= Sys.getenv("shiny_uid"),
-  password = Sys.getenv("shiny_pwd"),
+  host = "localhost",
+  port = 5432,
+  dbname = "sandbox",
+  user= "postgres",
+  password = "jontest",
   timezone = NULL)
 
 new_lvl_q <- "SELECT dtime, level_ft, smp_id, ow_suffix FROM data.viw_ow_leveldata_sumpcorrected WHERE smp_id = '1267-2-1' AND ow_suffix = 'CS2' 
