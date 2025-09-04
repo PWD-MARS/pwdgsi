@@ -33,24 +33,24 @@ marsDBCon <- dbPool(
   ggsave("periodofrecord.png", record)
   
   
-  #1296-6-2 has only been monitored in recent months, and other sites have data
-   #for several preceeding years. For better comparison's sake, we will use the
-   #richest period of overlap, July-Nov 2019 for those four sites.
-  starttime = '2019-07-01'
-  endtime = '2019-11-30'
+  # #1296-6-2 has only been monitored in recent months, and other sites have data
+  #  #for several preceeding years. For better comparison's sake, we will use the
+  #  #richest period of overlap, July-Nov 2019 for those four sites.
+  # starttime = '2019-01-01'
+  # endtime = '2019-12-31'
   
   sites <- filter(sites, smp_id %in% c('81-1-1', '250-1-1', '250-2-1', '589-1-1'))
   
-  owdata <- filter(owdata, dtime %within% interval(starttime, endtime, 
-    tzone = "America/New_York")) 
+  # owdata <- filter(owdata, dtime %within% interval(starttime, endtime, 
+  #   tzone = "America/New_York")) 
 
 #Pull events
   cells <- dbGetQuery(marsDBCon, paste0("select * from admin.tbl_smp_radar where smp_id in ('", 
     paste0(sites$smp_id, collapse = "', '"), "')"))
 
   events <- dbGetQuery(marsDBCon, paste0("select * from data.tbl_radar_event 
-    where radar_uid in (", paste(cells$radar_uid, collapse = ", "), ") and
-          eventdatastart between '", starttime, "' and '", endtime, "'")) 
+    where radar_uid in (", paste(cells$radar_uid, collapse = ", "), ")")) # and
+          #eventdatastart between '", starttime, "' and '", endtime, "'")) 
 
 #Slope function
   monicaDescendingLimbSlope <- function(dtime, series, event_uid){
@@ -126,12 +126,15 @@ marsDBCon <- dbPool(
       stormdata <- mutate(stormdata, radar_event_uid = sitestorms$radar_event_uid[j],
                           rawslope_inhr = monicaDescendingLimbSlope(dtime, level_ft, sitestorms$radar_event_uid[j]))
       
+      
+      
       hosttable <- rbind(hosttable, stormdata)
     }
   }
   
   successes <- filter(hosttable, complete.cases(hosttable)) %>%
-    left_join(sites)  
+    left_join(sites)  %>%
+    filter(rawslope_inhr < 10)
   
   scatter <- ggplot(successes, aes(x = dtime, y = smp_id)) + 
     geom_point() +
@@ -139,13 +142,45 @@ marsDBCon <- dbPool(
   
   ggsave("FY20successes.PNG", scatter)
   
-oct <- filter(successes, dtime <= ymd('2019-11-01'), dtime >= ymd('2019-10-01'))
+#oct <- filter(successes, dtime <= ymd('2019-11-01'), dtime >= ymd('2019-10-01'))
 stats <- data.frame(smp_id = c("250-1-1", "250-2-1", "81-1-1", "589-1-1"),
                     note = c("Elevated, Orifice", "Elevated, Orifice", "Elevated, Capped", "Sumped, Orifice"),
                     stringsAsFactors=FALSE) %>%
   mutate(string = paste(smp_id, note, sep = "\n"))
 
-octt <- left_join(oct, stats)
+octt <- left_join(successes, stats)
 
-boxes <- ggplot(octt, aes(x = string, y = rawslope_inhr)) + geom_boxplot() + ggtitle("Boxplot of Slopes for October 2019")
+boxes <- ggplot(octt, aes(x = string, y = rawslope_inhr)) + geom_boxplot() + ggtitle("Boxplot of Slopes for Period of Record")
 ggsave("boxplots.png", boxes)
+
+
+successes_inches <- mutate(successes, level_in = level_ft * 12, 
+                           stage_in = as.factor(trunc(level_in)),
+                           under_thresh = rawslope_inhr < 0.25) %>%
+  filter(under_thresh == FALSE) %>%
+  filter(level_in <= 12) %>%
+  filter(rawslope_inhr < 10) %>%
+  left_join(stats)
+
+slopes <- ggplot(successes_inches, aes(x = stage_in, y = rawslope_inhr, color = note)) + geom_boxplot() + 
+  ggtitle("Boxplot of slopes by inch") + 
+  theme(text = element_text(size = 20)) +
+  xlab("Inches above bottom of storage") +
+  ylab("Recession rate (in/hr)")
+ggsave("slopes.png", slopes, width = 15, height = 8, units = "in")
+
+successes_inches <- mutate(successes_inches, system_id = gsub("(\\d+-\\d+-\\d+)", "\\1", smp_id))
+
+systems <- dbGetQuery(marsDBCon, "select smp_id, assumption_orificeheight_ft from external.viw_greenit_subsurface_unlined")
+
+greenit <- left_join(successes_inches, systems)
+
+mutate(greenit, below_orifice = level_ft < assumption_orificeheight_ft) -> odata
+
+orifices <- ggplot(odata, aes(x = below_orifice, y = rawslope_inhr, color = note)) + geom_boxplot() + 
+  ggtitle("Boxplot of slopes by above/below orifice") + 
+  theme(text = element_text(size = 20)) +
+  xlab("Measured Below Orifice?") +
+  ylab("Recession rate (in/hr)")
+ggsave("orifices.png", orifices, width = 15, height = 8, units = "in")
+
