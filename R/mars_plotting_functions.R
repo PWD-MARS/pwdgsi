@@ -800,8 +800,8 @@ marsEventCombinedPlot <- function(con,
   #### This is a really confusing way of doing it. min_dif should just be dif
   #### and then it would be dif - min(dif)
   if(nrow(event_data) > 1) {
-    min_dif <- min(abs(event_data$eventdatastart_est - event_date))
-    event_data <- event_data[abs(event_data$eventdatastart_est - event_date) == min_dif,]
+    min_dif <- min(abs(event_data$eventdatastart - event_date))
+    event_data <- event_data[abs(event_data$eventdatastart - event_date) == min_dif,]
     }
     # If event_uid argument is provided
     } else {
@@ -818,9 +818,9 @@ marsEventCombinedPlot <- function(con,
       # Set event_data start and end dates
       #### This will return different results than if it was only given a day.
       event_data <- dbGetQuery(con, event_query)
-      event_date <- event_data$eventdatastart_edt %>% as.Date()
-      start_date <- event_data$eventdatastart_edt %>% as.Date()
-      end_date <- event_data$eventdataend_edt %>% as.Date()
+      event_date <- event_data$eventdatastart %>% as.Date()
+      start_date <- event_data$eventdatastart %>% as.Date()
+      end_date <- event_data$eventdataend %>% as.Date()
   
       # Get monitoring data
       mon_data <- marsFetchMonitoringData(con = con,
