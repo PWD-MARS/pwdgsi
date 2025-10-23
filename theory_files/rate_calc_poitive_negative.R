@@ -20,11 +20,11 @@ marsDBCon <- dbPool(
 
 
 #Slope function
-FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in , sump_depth_ft, orrifice_elev_ft){
+FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in, gage_event_uid, sump_depth_ft, orrifice_elev_ft){
   #Goals: 
   #Find the instantaneous slope at each timestep there
   
-  rain_df <- data.frame(rain_dtime = as.POSIXct(rain_dtime, tz = "UTC"), rain_depth_in)
+  rain_df <- data.frame(rain_dtime = as.POSIXct(rain_dtime, tz = "UTC"), rain_depth_in, gage_event_uid)
   joined_df  <- data.frame(level_dtime = as.POSIXct(level_dtime, tz = "UTC"), series) %>%
     full_join(rain_df, by = c("level_dtime" = "rain_dtime"))
   
@@ -54,7 +54,7 @@ FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in , sump_d
   
   
   output_final <- output_df %>%
-    select(dtime = datetime, level_ft = series, rain_depth_in, rawslope_inhr, sump_depth_ft, orrifice_elev_ft, below_sump, below_orrifice)
+    select(dtime = datetime, level_ft = series, rain_depth_in, gage_event_uid,rawslope_inhr, sump_depth_ft, orrifice_elev_ft, below_sump, below_orrifice)
   return(output_final)
   
 }
@@ -86,7 +86,7 @@ cells <- dbGetQuery(marsDBCon, paste0("select * from admin.tbl_smp_gage where sm
 events <- dbGetQuery(marsDBCon, paste0("select * from data.tbl_gage_event 
     where gage_uid in (", paste(cells$gage_uid, collapse = ", "), ")")) 
 
-rain_ts <- dbGetQuery(marsDBCon, paste0("select * from data.tbl_gage_rain 
+rain_ts <- dbGetQuery(marsDBCon, paste0("select * from data.viw_gage_rainfall 
     where gage_uid in (", paste(cells$gage_uid, collapse = ", "), ")")) %>%
   dplyr::filter(dtime >= boundaries$start & dtime <= boundaries$end)
 
@@ -96,8 +96,9 @@ level_dtime <-owdata$dtime
 series <- owdata$level_ft
 rain_dtime <- rain_ts$dtime
 rain_depth_in <- rain_ts$rainfall_in
+gage_event_uid <- rain_ts$gage_event_uid
 
 # calulate rates
 
-rates <- FarshadSlope(level_dtime, series, rain_dtime, rain_depth_in , sump_depth_ft, orrifice_elev_ft)
+rates <- FarshadSlope(level_dtime, series, rain_dtime, rain_depth_in , gage_event_uid, sump_depth_ft, orrifice_elev_ft)
 
