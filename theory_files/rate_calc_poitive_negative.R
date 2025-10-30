@@ -174,10 +174,37 @@ rates_plot <- ggplot(rates_test_df, aes(x = dtime, y = rawslope_inhr)) +
 
 combined <- level_plot/rates_plot
 
-# refine the rates by filling out the gaps of zero rain in an event
+# Tag post-event data
 
+events_start_stop <- events %>%
+  select(gage_event_uid, eventdatastart, eventdataend) %>%
+  filter(gage_event_uid %in% rates$gage_event_uid)
 
+rates_between_events <- NULL
+rates_during_events <- rates %>%
+  filter(!is.na(gage_event_uid)) %>%
+  mutate(post_gage_event_uid = NA)
 
+for (j in 1:(nrow(events_start_stop)-1)) {
+  rates_temp <- rates %>%
+    filter(dtime > events_start_stop$eventdataend[j] & dtime < events_start_stop$eventdatastart[j+1]) %>%
+    mutate(post_gage_event_uid = events_start_stop$gage_event_uid[j])
+  
+  rates_between_events <- rbind(rates_between_events, rates_temp)
+  
+}
 
+complete_rates <- rbind(rates_between_events, rates_during_events) %>%
+  arrange(dtime)
 
+# filter to grab all negative slopes, in between events with abs value greater than  0.1 between 2.5 and 3 ft
+complete_rates_trend_analysis <- complete_rates %>%
+  filter(rawslope_inhr < -0.99 &
+           !is.na(post_gage_event_uid) &
+           level_ft < 3 &
+           level_ft > 2.5)
 
+# get median of the recession rates
+complete_rates_trend_analysis_grouped <- complete_rates_trend_analysis %>%
+  group_by(post_gage_event_uid) %>%
+  summarise(median_rate = median(rawslope_inhr), rain_date = min(dtime))
