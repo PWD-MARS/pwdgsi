@@ -24,8 +24,8 @@ FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in, gage_ev
   #Goals: 
   #Find the instantaneous slope at each timestep there
   
-  rain_df <- data.frame(rain_dtime = as.POSIXct(rain_dtime, tz = "UTC"), rain_depth_in, gage_event_uid)
-  joined_df  <- data.frame(level_dtime = as.POSIXct(level_dtime, tz = "UTC"), series) %>%
+  rain_df <- data.frame(rain_dtime = as.POSIXct(rain_dtime), rain_depth_in, gage_event_uid)
+  joined_df  <- data.frame(level_dtime = as.POSIXct(level_dtime), series) %>%
     full_join(rain_df, by = c("level_dtime" = "rain_dtime"))
   
   # Create 15-min interval grid
@@ -63,7 +63,7 @@ FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in, gage_ev
 smp_id <- "14-1-2"
 ow_uid <- "OW1"
 sump_depth_ft <- 1
-orrifice_elev_ft <- 0.84
+orrifice_elev_ft <- sump_depth_ft + 0.84
 
 
 sites <- dbGetQuery(marsDBCon, paste("select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow where smp_id in ('", smp_id, "') and ow_suffix = '", ow_uid, "'", sep = ""))
@@ -88,17 +88,96 @@ events <- dbGetQuery(marsDBCon, paste0("select * from data.tbl_gage_event
 
 rain_ts <- dbGetQuery(marsDBCon, paste0("select * from data.viw_gage_rainfall 
     where gage_uid in (", paste(cells$gage_uid, collapse = ", "), ")")) %>%
-  dplyr::filter(dtime >= boundaries$start & dtime <= boundaries$end)
+  dplyr::filter(dtime >= boundaries$start & dtime <= boundaries$end) %>%
+  dplyr::select(dtime, gage_uid, rainfall_in, gage_event_uid)
 
+
+# loop to make events regular with zero rainfalls
+events_unique <- rain_ts %>%
+  select(gage_event_uid) %>%
+  distinct() %>%
+  na.omit() %>%
+  pull()
+
+final_output <- NULL
+for (i in 1:length(events_unique)) {
+  
+  rain_ts_event <- rain_ts %>%
+    filter(gage_event_uid == events_unique[i])
+  
+  # Ensure proper date-time format
+  rain_ts_event$dtime <- as.POSIXct(rain_ts_event$dtime)
+  
+  # Create zoo object
+  ts_zoo_object <- zoo(
+    rain_ts_event[, c("gage_uid", "rainfall_in", "gage_event_uid")],
+    order.by = rain_ts_event$dtime
+  )
+  
+  all_times <- seq(from = start(ts_zoo_object), to = end(ts_zoo_object), by = "15 min")
+  
+  z_reg <- merge(ts_zoo_object, zoo(, all_times), all = TRUE)
+  
+  # Carry forward gage_uid and gage_event_uid
+  z_reg$gage_uid       <- na.locf(z_reg$gage_uid)
+  z_reg$gage_event_uid <- na.locf(z_reg$gage_event_uid)
+  
+  # Replace NAs in rainfall with 0 (zero rainfall for missing intervals)
+  z_reg$rainfall_in[is.na(z_reg$rainfall_in)] <- 0
+  
+  final_output <- rbind(final_output, z_reg)
+}
 
 # populate for the usage in the function
 level_dtime <-owdata$dtime
 series <- owdata$level_ft
-rain_dtime <- rain_ts$dtime
-rain_depth_in <- rain_ts$rainfall_in
-gage_event_uid <- rain_ts$gage_event_uid
+rain_dtime <- index(final_output)
+rain_depth_in <- final_output$rainfall_in
+gage_event_uid <- final_output$gage_event_uid
 
 # calulate rates
 
 rates <- FarshadSlope(level_dtime, series, rain_dtime, rain_depth_in , gage_event_uid, sump_depth_ft, orrifice_elev_ft)
+
+# rates test
+rates_test_df <- rates %>%
+  filter(dtime > as.Date("2018-11-23") & dtime < as.Date("2018-11-28"))
+
+
+level_plot <- ggplot(rates_test_df, aes(x = dtime, y = level_ft)) + 
+  geom_point() +
+  geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
+             color = "blue", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
+             color = "blue", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
+             color = "darkgreen", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
+             color = "darkgreen", size=1.5)+
+  geom_hline(yintercept = 1) +
+  geom_hline(yintercept = 1.84, color = "red") +
+  annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.1, label = "Top of Sump")+
+  annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.9, label = "Orifice Elev")+
+  ggtitle("14-1-2 OW1- Nov 2018")
+  
+  
+rates_plot <- ggplot(rates_test_df, aes(x = dtime, y = rawslope_inhr)) + 
+  geom_point() +
+  geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
+             color = "blue", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
+             color = "blue", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
+             color = "darkgreen", size=1.5) +
+  geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
+             color = "darkgreen", size=1.5)
+
+combined <- level_plot/rates_plot
+
+# refine the rates by filling out the gaps of zero rain in an event
+
+
+
+
+
 
