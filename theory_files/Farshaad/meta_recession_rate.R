@@ -125,7 +125,7 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft, recession_rate_in
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
     left_join(joined_df, by = "dtime") %>%
-    select(ow_uid, dtime, level_ft, recession_rate_inhr, gage_rain_uid) %>%
+    select(ow_uid, dtime, level_ft, recession_rate_inhr, gage_rain_uid, gage_uid, rainfall_in, gage_event_uid) %>%
     filter(!is.na(recession_rate_inhr))
   
   return(result)
