@@ -75,8 +75,8 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft, recession_rate_in
     return(NA)
   }
   
-  # both ow_uid and level must be numeric and ow_uid must a single numeric
-  if (!is.numeric(ow_uid) & length(ow_uid) == 1) {
+  # both ow_uid and level must be numeric and ow_uid must be numeric
+  if (!is.numeric(ow_uid) & (length(ow_uid) == 1 | length(ow_uid) == length(level_ft))) {
     print(paste("OW UID must be a numeric value!"))
     return(NA)
   }
@@ -104,7 +104,7 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft, recession_rate_in
   # Pull rain ts
   gage <- dbGetQuery(conn, paste0(
     "select * from admin.tbl_smp_gage left join fieldwork.tbl_ow using(smp_id) where ow_uid in (",
-    paste0(ow_uid, collapse = ", '"), ")"
+    paste0(unique(ow_uid), collapse = ", '"), ")"
   ))
   
   
