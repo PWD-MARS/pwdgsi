@@ -172,22 +172,24 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
   )) %>%
     select(custom_sumpdepth_ft, custom_orificedepth_ft, start_dtime, end_dtime) 
   
-  # Replace NA end times with today's date
+  # Replace NA end_dtime with today and sort by end_dtime
   well_meas <- well_meas %>%
-    mutate(end_dtime = if_else(is.na(end_dtime), Sys.Date(), as.Date(end_dtime)))
+    mutate(end_dtime = if_else(is.na(end_dtime), Sys.Date(), end_dtime)) %>%
+    arrange(end_dtime)
   
-  # Perform an interval join: match dtime that falls between start_dtime and end_dtime
+  # Ensure complete_rates is ordered
   complete_rates_sump_orifice <- complete_rates %>%
-    fuzzy_left_join(
-      well_meas,
-      by = c("dtime" = "start_dtime", "dtime" = "end_dtime"),
-      match_fun = list(`>=`, `<=`)
-    ) %>%
+    arrange(dtime) %>%
     mutate(
-      sump_depth_ft = custom_sumpdepth_ft,
-      orifice_tostone_ft = custom_orificedepth_ft
+      # Determine which interval each dtime belongs to
+      idx = findInterval(dtime, well_meas$end_dtime, left.open = TRUE) + 1,
+      # If dtime is after all end_dtime values, cap idx at the last row
+      idx = if_else(idx > nrow(well_meas), nrow(well_meas), idx),
+      # Assign corresponding depth values
+      sump_depth_ft = well_meas$custom_sumpdepth_ft[idx],
+      orifice_tostone_ft = well_meas$custom_orificedepth_ft[idx]
     ) %>%
-    select(-start_dtime, -end_dtime, -custom_sumpdepth_ft, -custom_orificedepth_ft)
+    select(-idx)
   
   
   # Create 15-min interval grid
