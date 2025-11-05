@@ -165,22 +165,22 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
   complete_rates <- rbind(rates_between_events, rates_during_events) %>%
     arrange(dtime) %>%
     select(dtime, post_gage_event_uid)
-  
+
   complete_rates <- joined_df %>%
     left_join(complete_rates, by = "dtime")
-  
-  # Pull well measurements 
+
+  # Pull well measurements
   well_meas <- dbGetQuery(conn, paste0(
     "select * from fieldwork.tbl_well_measurements where ow_uid in (",
     paste0(unique(ow_uid), collapse = ", '"), ")"
   )) %>%
-    select(custom_sumpdepth_ft, custom_orificedepth_ft, start_dtime, end_dtime) 
-  
+    select(custom_sumpdepth_ft, custom_orificedepth_ft, start_dtime, end_dtime)
+
   # Replace NA end_dtime with today and sort by end_dtime
   well_meas <- well_meas %>%
     mutate(end_dtime = if_else(is.na(end_dtime), Sys.Date(), end_dtime)) %>%
     arrange(end_dtime)
-  
+
   # Ensure complete_rates is ordered
   complete_rates_sump_orifice <- complete_rates %>%
     arrange(dtime) %>%
@@ -194,8 +194,8 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
       orifice_tostone_ft = well_meas$custom_orificedepth_ft[idx]
     ) %>%
     select(-idx)
-  
-  
+
+
   # Create 15-min interval grid
   time_grid <- data.frame(dtime = seq(
     floor_date(min(level_recession_df$dtime, na.rm = TRUE), "15 mins"),
