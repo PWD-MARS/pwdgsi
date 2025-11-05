@@ -163,8 +163,12 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
   }
 
   complete_rates <- rbind(rates_between_events, rates_during_events) %>%
-    arrange(dtime)
-
+    arrange(dtime) %>%
+    select(dtime, post_gage_event_uid)
+  
+  complete_rates <- joined_df %>%
+    left_join(complete_rates, by = "dtime")
+  
   # Pull well measurements 
   well_meas <- dbGetQuery(conn, paste0(
     "select * from fieldwork.tbl_well_measurements where ow_uid in (",
@@ -201,7 +205,7 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
 
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
-    left_join(complete_rates, by = "dtime") %>%
+    left_join(complete_rates_sump_orifice, by = "dtime") %>%
     filter(!is.na(recession_rate_inhr))
 
   return(result)
