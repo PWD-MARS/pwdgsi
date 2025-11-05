@@ -94,6 +94,8 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
     paste0(unique(ow_uid), collapse = ", '"), ")"
   ))
   
+  events <- dbGetQuery(conn, paste0("select * from data.tbl_gage_event 
+    where gage_uid in (", paste(gage$gage_uid, collapse = ", "), ")")) 
   
   rain_ts <- dbGetQuery(conn, paste0("select * from data.viw_gage_rainfall 
     where gage_uid in (", paste(gage$gage_uid, collapse = ", "), ")")) %>%
@@ -141,6 +143,29 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
   joined_df <- level_recession_df %>%
     left_join(regular_rain_ts_df, by = c("dtime"))
   
+  # Tag post-event data
+  events_start_stop <- events %>%
+    select(gage_event_uid, eventdatastart, eventdataend) %>%
+    filter(gage_event_uid %in% joined_df$gage_event_uid)
+  
+  rates_between_events <- NULL
+  rates_during_events <- joined_df %>%
+    filter(!is.na(gage_event_uid)) %>%
+    mutate(post_gage_event_uid = NA)
+  # assign gage_event_uid to the post event as post_gage_event_uid attribute
+  for (j in 1:(nrow(events_start_stop)-1)) {
+    rates_temp <- joined_df %>%
+      filter(dtime > events_start_stop$eventdataend[j] & dtime < events_start_stop$eventdatastart[j+1]) %>%
+      mutate(post_gage_event_uid = events_start_stop$gage_event_uid[j])
+    
+    rates_between_events <- rbind(rates_between_events, rates_temp)
+    
+  }
+  
+  complete_rates <- rbind(rates_between_events, rates_during_events) %>%
+    arrange(dtime)
+  
+  
   # Create 15-min interval grid
   time_grid <- data.frame(dtime = seq(
     floor_date(min(level_recession_df$dtime, na.rm = TRUE), "15 mins"),
@@ -150,11 +175,10 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
   
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
-    left_join(joined_df, by = "dtime") %>%
+    left_join(complete_rates, by = "dtime") %>%
     filter(!is.na(recession_rate_inhr))
   
   return(result)
-  
   
   
 }
