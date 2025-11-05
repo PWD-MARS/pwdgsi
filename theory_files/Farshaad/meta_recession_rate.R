@@ -10,7 +10,6 @@ library(zoo) # working with time series data
 library(patchwork)
 library(data.table)
 
-
 # Connect
 conn <- dbPool(
   drv = RPostgres::Postgres(),
@@ -59,7 +58,6 @@ recession_rate <- function(ow_uid, dtime, level_ft) {
     
 }
 
-
 # meta data function to make TS regular at 15 min interval, add rainfall TS and event meta data, post rain meta data, orifice and sump values 
 recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
   
@@ -79,8 +77,6 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
     print(paste("Level data must be numeric!"))
     return(NA)
   }
-  
-  
   
   # calculate recession rates
   level_recession_df <- recession_rate(ow_uid, dtime, level_ft)
@@ -103,8 +99,47 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
     where gage_uid in (", paste(gage$gage_uid, collapse = ", "), ")")) %>%
     dplyr::filter(dtime >= boundaries$start & dtime <= boundaries$end)
   
+  # add post rain meta data 
+  # loop to make events regular with zero rainfalls
+  events_unique <- rain_ts %>%
+    select(gage_event_uid) %>%
+    distinct() %>%
+    na.omit() %>%
+    pull()
+  
+  regular_rain_ts <- NULL
+  for (i in 1:length(events_unique)) {
+    
+    rain_ts_event <- rain_ts %>%
+      filter(gage_event_uid == events_unique[i])
+    
+    # Ensure proper date-time format
+    rain_ts_event$dtime <- as.POSIXct(rain_ts_event$dtime)
+    
+    # Create zoo object
+    ts_zoo_object <- zoo(
+      rain_ts_event[, c("gage_uid", "rainfall_in", "gage_event_uid")],
+      order.by = rain_ts_event$dtime
+    )
+    
+    all_times <- seq(from = start(ts_zoo_object), to = end(ts_zoo_object), by = "15 min")
+    
+    z_reg <- merge(ts_zoo_object, zoo(, all_times), all = TRUE)
+    
+    # Carry forward gage_uid and gage_event_uid
+    z_reg$gage_uid       <- na.locf(z_reg$gage_uid)
+    z_reg$gage_event_uid <- na.locf(z_reg$gage_event_uid)
+    
+    # Replace NAs in rainfall with 0 (zero rainfall for missing intervals)
+    z_reg$rainfall_in[is.na(z_reg$rainfall_in)] <- 0
+    
+    regular_rain_ts <- rbind(regular_rain_ts, z_reg)
+  }
+  
+  regular_rain_ts_df <- data.frame(dtime = as.POSIXct(index(regular_rain_ts)), data.frame(regular_rain_ts, row.names = NULL))
+
   joined_df <- level_recession_df %>%
-    left_join(rain_ts, by = c("dtime"))
+    left_join(regular_rain_ts_df, by = c("dtime"))
   
   # Create 15-min interval grid
   time_grid <- data.frame(dtime = seq(
@@ -116,9 +151,10 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
     left_join(joined_df, by = "dtime") %>%
-    select(ow_uid, dtime, level_ft, recession_rate_inhr, gage_rain_uid, gage_uid, rainfall_in, gage_event_uid) %>%
     filter(!is.na(recession_rate_inhr))
   
   return(result)
+  
+  
   
 }
