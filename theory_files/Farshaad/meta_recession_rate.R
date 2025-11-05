@@ -61,17 +61,11 @@ recession_rate <- function(ow_uid, dtime, level_ft) {
 
 
 # meta data function to make TS regular at 15 min interval, add rainfall TS and event meta data, post rain meta data, orifice and sump values 
-recession_rate_meta <- function(conn, ow_uid, dtime, level_ft, recession_rate_inhr){
+recession_rate_meta <- function(conn, ow_uid, dtime, level_ft){
   
   # If the level_ft and dtime do not match return NAs
   if (length(dtime) != length(level_ft)) {
     print(paste("Level and dtime timeseries have different lengths!"))
-    return(NA)
-  }
-  
-  # If the level_ft and recession_rate_inhr do not match return NAs
-  if (length(recession_rate_inhr) != length(level_ft)) {
-    print(paste("Level and recession rates timeseries have different lengths!"))
     return(NA)
   }
   
@@ -86,13 +80,10 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft, recession_rate_in
     return(NA)
   }
   
-  if (!is.numeric(recession_rate_inhr)) {
-    print(paste("Recession rate data must be numeric!"))
-    return(NA)
-  }
   
-  # join dtime and level_ft
-  level_recession_df <- data.frame(ow_uid = ow_uid, dtime = as.POSIXct(dtime), level_ft = level_ft, recession_rate_inhr = recession_rate_inhr)
+  
+  # calculate recession rates
+  level_recession_df <- recession_rate(ow_uid, dtime, level_ft)
   
   # filtering rain data
   boundaries <- group_by(level_recession_df, ow_uid) %>%
