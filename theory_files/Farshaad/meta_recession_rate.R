@@ -211,7 +211,7 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
 
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
-    left_join(complete_rates, by = "dtime") %>%
+    left_join(complete_rates_sump_orifice, by = "dtime") %>%
     filter(!is.na(recession_rate_inhr))
 
   return(result)
