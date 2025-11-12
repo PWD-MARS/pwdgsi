@@ -175,27 +175,33 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
     paste0(unique(ow_uid), collapse = ", '"), ")"
   )) %>%
     select(custom_sumpdepth_ft, custom_orificedepth_ft, start_dtime, end_dtime)
-
-  # Replace NA end_dtime with today and sort by end_dtime
+  
+  # Fill missing end_dtime with today and sort
   well_meas <- well_meas %>%
-    mutate(end_dtime = if_else(is.na(end_dtime), Sys.Date(), end_dtime)) %>%
+    mutate(end_dtime = replace_na(end_dtime, Sys.Date())) %>%
     arrange(end_dtime)
-
-  # Ensure complete_rates is ordered
-  complete_rates_sump_orifice <- complete_rates %>%
-    arrange(dtime) %>%
-    mutate(
-      # Determine which interval each dtime belongs to
-      idx = findInterval(dtime, well_meas$end_dtime, left.open = TRUE) + 1,
-      # If dtime is after all end_dtime values, cap idx at the last row
-      idx = if_else(idx > nrow(well_meas), nrow(well_meas), idx),
-      # Assign corresponding depth values
-      sump_depth_ft = well_meas$custom_sumpdepth_ft[idx],
-      orifice_tostone_ft = well_meas$custom_orificedepth_ft[idx]
-    ) %>%
-    select(-idx)
-
-
+  
+  # If well_meas has only one row, use its values for all rows
+  if (nrow(well_meas) == 1) {
+    complete_rates_sump_orifice <- complete_rates %>%
+      arrange(dtime) %>%
+      mutate(
+        sump_depth_ft = well_meas$custom_sumpdepth_ft,
+        orifice_tostone_ft = well_meas$custom_orificedepth_ft
+      )
+  } else {
+    # Otherwise, assign based on which interval each dtime falls into
+    complete_rates_sump_orifice <- complete_rates %>%
+      arrange(dtime) %>%
+      mutate(
+        idx = findInterval(dtime, well_meas$end_dtime, left.open = TRUE) + 1,
+        idx = pmin(idx, nrow(well_meas)),  # cap at last row
+        sump_depth_ft = well_meas$custom_sumpdepth_ft[idx],
+        orifice_tostone_ft = well_meas$custom_orificedepth_ft[idx]
+      ) %>%
+      select(-idx)
+  }
+  
   # Create 15-min interval grid
   time_grid <- data.frame(dtime = seq(
     floor_date(min(level_recession_df$dtime, na.rm = TRUE), "15 mins"),
@@ -205,8 +211,109 @@ recession_rate_meta <- function(conn, ow_uid, dtime, level_ft) {
 
   # Join with the time grid to enforce 15-min intervals ---
   result <- time_grid %>%
-    left_join(complete_rates_sump_orifice, by = "dtime") %>%
+    left_join(complete_rates, by = "dtime") %>%
     filter(!is.na(recession_rate_inhr))
 
   return(result)
 }
+
+
+
+
+# calculate recession rates for long term sites 
+# Original longterm sites and A/B testing
+targeted_sties <- read_excel("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\06 Continued Monitoring Plan\\Continued Monitoring Plan System List.xlsx") %>%
+  filter(`Test Group` == "Original-Long-Term Sedimentation Monitoring" | `Test Group` == "A/B Short-Term Remonitoring") %>%
+  select(smp_id = `SMP ID`, test_group = `Test Group`, ow_suffix = Location)
+
+ow_uid_list <- dbGetQuery(conn, paste("select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow where smp_id in (", toString(paste("'", targeted_sties$smp_id, "'", sep = "")), ")", sep = "")) 
+
+longterm_targeted_sties <- targeted_sties %>%
+  inner_join(ow_uid_list, by = c("smp_id", "ow_suffix")) %>%
+  filter(test_group == "Original-Long-Term Sedimentation Monitoring")
+  
+# create a loop to store recession rates 
+longterm_recession_rates <- NULL
+
+for (i in 1:nrow(longterm_targeted_sties)) {
+  
+  owdata_temp <- dbGetQuery(conn, paste0("select dtime, level_ft from data.tbl_ow_leveldata_raw
+    where ow_uid in (", paste(longterm_targeted_sties$ow_uid[i], collapse = ", "), ")"))
+  
+  longterm_recession_rates_temp <- recession_rate_meta(conn = conn,
+                                                       ow_uid = longterm_targeted_sties$ow_uid[i],
+                                                       dtime = owdata_temp$dtime,
+                                                       level_ft = owdata_temp$level_ft)
+  
+  longterm_recession_rates <- rbind(longterm_recession_rates, longterm_recession_rates_temp)
+  
+}
+
+
+ow_uid_plot <- 708
+# post events
+postevent_rates_trend_analysis <- longterm_recession_rates %>%
+  filter(ow_uid == ow_uid_plot &
+           level_ft > 1.41 &
+           level_ft < 2.41 &
+           recession_rate_inhr < 0 & 
+           !is.na(post_gage_event_uid))
+
+# get median of the recession rates
+postevent_rates_trend_analysis_grouped <- postevent_rates_trend_analysis %>%
+  group_by(post_gage_event_uid) %>%
+  summarise(median_rate = median(recession_rate_inhr), rain_date = as.Date(min(dtime, na.rm = T)))
+
+# plot
+post_trend_plot <- ggplot(postevent_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -5) +
+  ggtitle("187-3-3 Tree trench, Post Rain Median Recession Data (1 ft above the bottom of the sump)") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+#during events
+duringevent_rates_trend_analysis <- longterm_recession_rates %>%
+  filter(ow_uid == ow_uid_plot &
+           level_ft > 1.41 &
+           level_ft < 2.41 &
+         recession_rate_inhr < 0 &
+           is.na(post_gage_event_uid))
+
+# get median of the recession rates
+duringevent_rates_trend_analysis_grouped <- duringevent_rates_trend_analysis %>%
+  group_by(gage_event_uid) %>%
+  summarise(median_rate = median(recession_rate_inhr), rain_date = as.Date(min(dtime, na.rm = T)))
+
+# plot
+during_trend_plot <- ggplot(duringevent_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -5) +
+  ggtitle("During Rain Median Recession Data") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+
+# during and post event
+all_rates_trend_analysis_grouped <- longterm_recession_rates %>%
+  filter(ow_uid == ow_uid_plot & recession_rate_inhr < 0 & level_ft > 1.41 & level_ft < 2.41) %>%
+  mutate(all_event = ifelse(is.na(gage_event_uid), post_gage_event_uid, gage_event_uid)) %>%
+  group_by(all_event) %>%
+  summarise(median_rate = median(recession_rate_inhr), rain_date = as.Date(min(dtime, na.rm = T)))
+
+# plot
+all_trend_plot <- ggplot(all_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -5) +
+  ggtitle("During and Post Rain Median Recession Data") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+combined_trend <- post_trend_plot/during_trend_plot/all_trend_plot
+combined_trend
