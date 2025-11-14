@@ -4,6 +4,7 @@ library(pool)
 library(fpp2)           # working with time series data
 library(zoo)            # working with time series data
 library(patchwork)
+library(data.table)
 
 
 #Connect
@@ -16,12 +17,16 @@ marsDBCon <- dbPool(
   password = Sys.getenv("admin_pwd"),
   timezone = NULL)
 
-#Establish period of record for test sites
-  sites <- dbGetQuery(marsDBCon, "select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow 
-    where smp_id in ('1359-8-2') 
+#Establish period of record for test sites_examples = 1359-8-2 OW1, event uid = 243797
+  # sites <- dbGetQuery(marsDBCon, "select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow
+  #   where smp_id in ('1359-8-2')
+  #     and ow_suffix = 'OW1'")
+
+sites <- dbGetQuery(marsDBCon, "select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow
+    where smp_id in ('9-1-1')
       and ow_suffix = 'OW1'")
   
-  owdata <- dbGetQuery(marsDBCon, paste0("select ow_uid, dtime, greatest(0, level_ft) as level_ft from data.tbl_ow_leveldata_raw
+owdata <- dbGetQuery(marsDBCon, paste0("select ow_uid, dtime, greatest(0, level_ft) as level_ft from data.tbl_ow_leveldata_raw
     where ow_uid in (", paste(sites$ow_uid, collapse = ", "), ")"))
   
   boundaries <- group_by(owdata, ow_uid) %>%
@@ -149,13 +154,14 @@ marsDBCon <- dbPool(
   hosttable <- NULL
   for(i in 1:nrow(sites)){
     sitedata <- filter(owdata, ow_uid == sites$ow_uid[i])
-    sitestorms <- filter(events, radar_uid == cells$radar_uid[cells$smp_id == sites$smp_id[i]]) %>% filter(radar_event_uid == 243797)
-
+    sitestorms <- filter(events, radar_uid == cells$radar_uid[cells$smp_id == sites$smp_id[i]]) #%>% filter(radar_event_uid == 434703 | radar_event_uid == 434704)
+    #sitestorms <- filter(events, radar_uid == cells$radar_uid[cells$smp_id == sites$smp_id[i]]) %>% filter(radar_event_uid == 243797 | radar_event_uid == 243798)
+    
    
     
     
-    for(j in 1:nrow(sitestorms)){
-      stormdata <- filter(sitedata, dtime %within% interval(sitestorms$eventdatastart[j], sitestorms$eventdataend[j] + hours(24)))
+    for(j in 1:(nrow(sitestorms)-1)){
+      stormdata <- filter(sitedata, dtime %within% interval(sitestorms$eventdatastart[j], sitestorms$eventdatastart[j] + hours(7*24) )) #fifelse(sitestorms$eventdataend[j] + hours(72) < sitestorms$eventdatastart[j+1], sitestorms$eventdataend[j] + hours(24), sitestorms$eventdatastart[j+1])
       if(nrow(stormdata) == 0){
         next
       }
@@ -164,7 +170,7 @@ marsDBCon <- dbPool(
       # spline smoothing
       stiedata_smoothed <- stormdata
       stiedata_smoothed$time_num <- as.numeric(stiedata_smoothed$dtime)
-      spline_model <- smooth.spline(x = stiedata_smoothed$time_num, y = stiedata_smoothed$level_ft, spar = 0.25)
+      spline_model <- smooth.spline(x = stiedata_smoothed$time_num, y = stiedata_smoothed$level_ft, spar = 0.1)
       stiedata_smoothed$level_spline <- predict(spline_model)$y
       
       
@@ -172,8 +178,7 @@ marsDBCon <- dbPool(
       stiedata_smoothed$moving_a_five_level <- rollmean(stiedata_smoothed$level_ft, k = 5, fill = NA)
       stiedata_smoothed$moving_m_five_level <- rollmedian(stiedata_smoothed$level_ft, k = 5, fill = NA)
       
-      
-      
+
       stormdata <- mutate(stiedata_smoothed, radar_event_uid = sitestorms$radar_event_uid[j],
                           rawslope_inhr = monicaDescendingLimbSlope(dtime, level_ft, sitestorms$radar_event_uid[j]),
                           smoothslope_inhr = monicaDescendingLimbSlope(dtime, level_spline, sitestorms$radar_event_uid[j]),
@@ -196,13 +201,13 @@ marsDBCon <- dbPool(
   
   # plot the storm
   stormdata$time_num <- as.numeric(stormdata$dtime)
-  spline_model <- smooth.spline(x = stormdata$time_num, y = stormdata$level_ft, spar = 0.25)
+  spline_model <- smooth.spline(x = stormdata$time_num, y = stormdata$level_ft, spar = 0.1)
   stormdata$level_spline <- predict(spline_model)$y
   
   storm <- ggplot(stormdata, aes(x = dtime, y = level_ft)) + 
     geom_point() +
-    geom_line(aes(y = level_spline), color = "blue") +
-    ggtitle("Raw + spine Level for Storm radar event uid = 243797 and Site = 1359-8-2 OW1")
+    geom_line(aes(y = level_spline), color = "red") +
+    ggtitle("Raw + spine Level")
   
   scatter_raw <- ggplot(successes, aes(x = dtime, y = rawslope_inhr)) + 
     geom_point() +
@@ -264,4 +269,54 @@ marsDBCon <- dbPool(
   
   
   
-
+  
+# only spline 
+  # plot the storm
+  stormdata$time_num <- as.numeric(stormdata$dtime)
+  spline_model <- smooth.spline(x = stormdata$time_num, y = stormdata$level_ft, spar = 0.1)
+  stormdata$level_spline <- predict(spline_model)$y
+  
+  
+  # identify timeseries with successful rate calculations
+  start_farshad_spline <- stormdata %>%
+    filter(!is.na(farshadspline_inhr)) %>%
+    select(dtime) %>%
+    pull() %>%
+    min()
+  
+  stop_farshad_spline <- stormdata %>%
+    filter(!is.na(farshadspline_inhr)) %>%
+    select(dtime) %>%
+    pull() %>%
+    max()
+  
+  storm_annotated <- ggplot(stormdata, aes(x = dtime, y = level_ft)) + 
+    geom_point() +
+    geom_line(aes(y = level_spline), color = "red") +
+    ggtitle("1359-8-2 OW1, radar_event_uid = 434703 (0.9 in) and 434704 (0.8 in) Jan 2023, Green lines: Start + Stop of 1st Rain, Purple lines: Start + Stop of 2nd Rain, Blue lines: Start + Stop of Rate Calculation") + 
+    geom_vline(xintercept =  start_farshad_spline, linetype="solid", 
+                 color = "blue", size=1.5) +
+    geom_vline(xintercept =  stop_farshad_spline, linetype="solid", 
+               color = "blue", size=1.5) +
+    geom_vline(xintercept =  sitestorms[1, ]$eventdatastart, linetype="solid", 
+               color = "darkgreen", size=1.5) +
+    geom_vline(xintercept =  sitestorms[1, ]$eventdataend, linetype="solid", 
+               color = "darkgreen", size=1.5) +
+    geom_vline(xintercept =  sitestorms[2, ]$eventdatastart, linetype="solid", 
+               color = "purple", size=1.5) +
+    geom_vline(xintercept =  sitestorms[2, ]$eventdataend, linetype="solid", 
+               color = "purple", size=1.5) 
+  
+  scatter_farshad_spline <- ggplot(successes, aes(x = dtime, y = farshadspline_inhr)) + 
+    geom_point() +
+    ylim(0, 4) +
+    ggtitle("Post-Peak Spline Slope Calculations") 
+  
+  
+  combo_double <- storm_annotated / scatter_farshad_spline
+  
+  
+  
+  
+  
+  
