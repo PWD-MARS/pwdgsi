@@ -27,8 +27,8 @@ poolConn <- dbPool(RPostgres::Postgres(),
                    port = 5434,
                    dbname = "mars_prod",
                    user = Sys.getenv("admin_uid"),
-                   password = Sys.getenv("admin_pwd")
-)
+                   password = Sys.getenv("admin_pwd"),
+                   timezone = NULL)
 ```
 
 ```{r targeted smp and design metrics}
@@ -58,9 +58,9 @@ rain_test <- rain_data %>%
   mutate(rain_within_threedays = "No") %>%
   mutate(start_level = NA) %>%
   mutate(max_level = NA) %>%
-  mutate(max_level_timestamp = as.POSIXct(NA, tz = "UTC")) %>%
+  mutate(max_level_timestamp = as.POSIXct(NA)) %>%
   mutate(level_at_seventytwo = NA) %>%
-  mutate(drain_timestamp = as.POSIXct(NA, tz = "UTC"))
+  mutate(drain_timestamp = as.POSIXct(NA))
 
 
 
