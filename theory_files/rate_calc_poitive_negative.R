@@ -1,4 +1,5 @@
 # caclulating instantaneous recession rates across water
+library(readxl)
 library(tidyverse)
 library(RPostgres)
 library(pool)
@@ -59,14 +60,33 @@ FarshadSlope <- function(level_dtime, series, rain_dtime, rain_depth_in, gage_ev
   
 }
 
+# Original longterm sites and A/B testing
+targeted_sties <- read_excel("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\06 Continued Monitoring Plan\\Continued Monitoring Plan System List.xlsx") %>%
+  filter(`Test Group` == "Original-Long-Term Sedimentation Monitoring" | `Test Group` == "A/B Short-Term Remonitoring") %>%
+  select(smp_id = `SMP ID`, test_group = `Test Group`, ow_suffix = Location)
 
-smp_id <- "14-1-2"
-ow_uid <- "OW1"
-sump_depth_ft <- 1
-orrifice_elev_ft <- sump_depth_ft + 0.84
+ow_uid_list <- dbGetQuery(marsDBCon, paste("select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow where smp_id in (", toString(paste("'", targeted_sties$smp_id, "'", sep = "")), ")", sep = "")) 
+
+targeted_sties <- targeted_sties %>%
+  inner_join(ow_uid_list, by = c("smp_id", "ow_suffix"))
+
+well_measurements <- dbGetQuery(marsDBCon, paste("select * from fieldwork.tbl_well_measurements")) %>%
+  filter(ow_uid %in% targeted_sties$ow_uid) %>%
+  select(ow_uid, custom_sumpdepth_ft, custom_orificedepth_ft, start_dtime, end_dtime) 
+
+targeted_sties_complete <- targeted_sties %>%
+  left_join(well_measurements, by = "ow_uid") %>%
+  distinct()
 
 
-sites <- dbGetQuery(marsDBCon, paste("select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow where smp_id in ('", smp_id, "') and ow_suffix = '", ow_uid, "'", sep = ""))
+smp_id <- "18-1-1"
+ow_suffix <- "OW1"
+sump_depth_ft <- 1.65
+orifice_tostone_ft <- 0.89
+orrifice_elev_ft <- sump_depth_ft + orifice_tostone_ft
+
+
+sites <- dbGetQuery(marsDBCon, paste("select ow_uid, smp_id, ow_suffix from fieldwork.tbl_ow where smp_id in ('", smp_id, "') and ow_suffix = '", ow_suffix, "'", sep = ""))
 
 owdata <- dbGetQuery(marsDBCon, paste0("select ow_uid, dtime, greatest(0, level_ft) as level_ft from data.tbl_ow_leveldata_raw
     where ow_uid in (", paste(sites$ow_uid, collapse = ", "), ")"))
@@ -139,40 +159,40 @@ gage_event_uid <- final_output$gage_event_uid
 
 rates <- FarshadSlope(level_dtime, series, rain_dtime, rain_depth_in , gage_event_uid, sump_depth_ft, orrifice_elev_ft)
 
-# rates test
-rates_test_df <- rates %>%
-  filter(dtime > as.Date("2018-11-23") & dtime < as.Date("2018-11-28"))
-
-
-level_plot <- ggplot(rates_test_df, aes(x = dtime, y = level_ft)) + 
-  geom_point() +
-  geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
-             color = "blue", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
-             color = "blue", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
-             color = "darkgreen", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
-             color = "darkgreen", size=1.5)+
-  geom_hline(yintercept = 1) +
-  geom_hline(yintercept = 1.84, color = "red") +
-  annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.1, label = "Top of Sump")+
-  annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.9, label = "Orifice Elev")+
-  ggtitle("14-1-2 OW1- Nov 2018")
-  
-  
-rates_plot <- ggplot(rates_test_df, aes(x = dtime, y = rawslope_inhr)) + 
-  geom_point() +
-  geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
-             color = "blue", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
-             color = "blue", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
-             color = "darkgreen", size=1.5) +
-  geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
-             color = "darkgreen", size=1.5)
-
-combined <- level_plot/rates_plot
+# # rates test
+# rates_test_df <- rates %>%
+#   filter(dtime > as.Date("2018-11-23") & dtime < as.Date("2018-11-28"))
+# 
+# 
+# level_plot <- ggplot(rates_test_df, aes(x = dtime, y = level_ft)) + 
+#   geom_point() +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
+#              color = "blue", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
+#              color = "blue", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
+#              color = "darkgreen", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
+#              color = "darkgreen", size=1.5)+
+#   geom_hline(yintercept = 1) +
+#   geom_hline(yintercept = 1.84, color = "red") +
+#   annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.1, label = "Top of Sump")+
+#   annotate("text", x = as.POSIXct("2018-11-23 16:15:00"), y = 1.9, label = "Orifice Elev")+
+#   ggtitle("14-1-2 OW1- Nov 2018")
+#   
+#   
+# rates_plot <- ggplot(rates_test_df, aes(x = dtime, y = rawslope_inhr)) + 
+#   geom_point() +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-24 16:15:00"), linetype="solid", 
+#              color = "blue", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-25 00:15:00"), linetype="solid", 
+#              color = "blue", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-26 12:00:00"), linetype="solid", 
+#              color = "darkgreen", size=1.5) +
+#   geom_vline(xintercept =  as.POSIXct("2018-11-26 18:15:00"), linetype="solid", 
+#              color = "darkgreen", size=1.5)
+# 
+# combined <- level_plot/rates_plot
 
 # Tag post-event data
 
@@ -197,14 +217,72 @@ for (j in 1:(nrow(events_start_stop)-1)) {
 complete_rates <- rbind(rates_between_events, rates_during_events) %>%
   arrange(dtime)
 
-# filter to grab all negative slopes, in between events with abs value greater than  0.1 between 2.5 and 3 ft
-complete_rates_trend_analysis <- complete_rates %>%
-  filter(rawslope_inhr < -0.99 &
+# filter to grab all negative slopes
+# PULL TEMP DATA
+
+# post events
+postevent_rates_trend_analysis <- complete_rates %>%
+  filter(rawslope_inhr < 0 &
            !is.na(post_gage_event_uid) &
-           level_ft < 3 &
-           level_ft > 2.5)
+           level_ft < 2.84 &
+           level_ft > 1.84)
 
 # get median of the recession rates
-complete_rates_trend_analysis_grouped <- complete_rates_trend_analysis %>%
+postevent_rates_trend_analysis_grouped <- postevent_rates_trend_analysis %>%
   group_by(post_gage_event_uid) %>%
-  summarise(median_rate = median(rawslope_inhr), rain_date = min(dtime))
+  summarise(median_rate = median(rawslope_inhr), rain_date = as.Date(min(dtime)))
+
+# plot
+post_trend_plot <- ggplot(postevent_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -6) +
+  ggtitle("Post Rain Median Recession Data 1 foot above Orifice") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+#during events
+duringevent_rates_trend_analysis <- complete_rates %>%
+  filter(rawslope_inhr < 0 &
+           is.na(post_gage_event_uid) &
+           level_ft < orrifice_elev_ft &
+           level_ft > sump_depth_ft)
+
+# get median of the recession rates
+duringevent_rates_trend_analysis_grouped <- duringevent_rates_trend_analysis %>%
+  group_by(gage_event_uid) %>%
+  summarise(median_rate = median(rawslope_inhr), rain_date = as.Date(min(dtime)))
+
+# plot
+during_trend_plot <- ggplot(duringevent_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -6) +
+  ggtitle("During Rain Median Recession Data 1 foot above Orifice") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+
+# during and post event
+all_rates_trend_analysis_grouped <- complete_rates %>%
+  filter(rawslope_inhr < 0 &
+           level_ft < orrifice_elev_ft &
+           level_ft > sump_depth_ft) %>%
+  mutate(all_event = ifelse(is.na(gage_event_uid), post_gage_event_uid, gage_ev ent_uid)) %>%
+  group_by(all_event) %>%
+  summarise(median_rate = median(rawslope_inhr), rain_date = as.Date(min(dtime)))
+
+# plot
+all_trend_plot <- ggplot(all_rates_trend_analysis_grouped, aes(x = rain_date, y = median_rate)) + 
+  geom_point() +
+  ylim(0, -6) +
+  ggtitle("During and Post Rain Median Recession Data 1 foot above Orifice") +
+  scale_x_date(
+    date_breaks = "1 year",     # show a tick every year
+    date_labels = "%Y"          # format labels as 4-digit years
+  )
+
+combined_trend <- post_trend_plot/during_trend_plot/all_trend_plot
+
