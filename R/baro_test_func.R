@@ -24,10 +24,14 @@ baro <- function(con, target_id, start_date, end_date, data_interval = c("5 mins
     stop (paste0("No data available in the reqested interval. The latest available baro data is from ", baro_latest_dtime, "."))
   }
 
-  # Use thickening to eliminate seconds and also rounds down to 5 min interval
-  needs_thickening <- baro$dtime %>% lubridate::second() %>% {. > 0} %>% any() == TRUE
+  # Check if dtime has seconds
+  needs_thickening <- baro$dtime |>
+    lubridate::second() |> {. > 0} |> any() == TRUE
+  
+  # 
   if (needs_thickening == TRUE) {
-    baro %<>% padr::thicken(interval = "5 mins", rounding = "down") %>%
+    baro <- baro |>
+      padr::thicken(interval = "5 mins", rounding = "down") %>%
       dplyr::group_by(dtime_5_min, smp_id) %>%
       dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>%
       dplyr::select(dtime = dtime_5_min, smp_id, baro_psi) %>%
