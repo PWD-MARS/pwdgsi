@@ -32,7 +32,7 @@ Imports:
     tidyverse,
     ggtext,
     zoo,
-    dplyr,
+    dplyr (>= 1.2.0),
     tidyr,
     DBI,
     RColorBrewer,
