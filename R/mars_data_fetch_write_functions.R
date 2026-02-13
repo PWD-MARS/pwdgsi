@@ -337,9 +337,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     dplyr::group_by(dtime) |>
     dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
                      smp_id =  "Interpolated",
-                     neighbors = dplyr::n()) #%>%
-    #### Not sure why this would be here
-    # zoo::na.trim(sides = "right") #trim trailing NAs
+                     neighbors = dplyr::n())
 }
 
 # marsCheckSMPSnapshot --------------------------------

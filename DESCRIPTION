@@ -3,7 +3,7 @@ Type: Package
 Title: Philadelphia Water Department Green Stormwater Infrastructure
 Version: 0.8.0
 Authors@R: c(
-    person("Taylor", "Heffernan", role = c("aut", "cre"), comment = "PWD", email = "taylor.heffernan@phila.gov"),
+    person("Monica", "Gucciardi", role = c("aut", "cre"), comment = "PWD", email = "monica.gucciardi@phila.gov"),
     person("Nicholas", "Manna", role = c("aut"), comment = "AKRF", email = "nmanna@akrf.com"),
     person("Katie", "Swanson", role = c("aut"), comment = "CDM Smith", email = "SwansonK@cdmsmith.com"),
     person("Brian", "Cruice", role = c("aut"), comment = "AKRF", email = "bcruice@akrf.com"))
