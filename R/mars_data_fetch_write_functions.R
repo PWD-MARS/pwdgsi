@@ -204,9 +204,9 @@ marsGapFillEventID <- function(event_low, event_high){
 
 marsInterpolateBaro <- function(baro_psi, smp_id, weight, target_id){
 
- if(length(baro_psi) >= 1){
+ if (length(baro_psi) >= 1) {
    return(sum(baro_psi*weight)/sum(weight))
- }else{
+ } else {
    return(NA)
  }
 }
@@ -228,8 +228,6 @@ yday_decimal <- function(dtime){
   lubridate::yday(dtime) + lubridate::hour(dtime)/24 + lubridate::minute(dtime)/(24*60) + lubridate::second(dtime)/(24*60*60)
   #### Does not include POSIXct types
 }
-
-
 
 # marsFetchBaroData --------------------------------
 
@@ -263,93 +261,86 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     stop("Argument 'con' is not an open ODBC channel")
   }
   
+  # Convert start/end to of type date
+  start_date <- lubridate::ymd(start_date, tz = "America/New_York")
+  end_date <- lubridate::ymd(end_date, tz = "America/New_York") 
   
-  #Handle date Conversion
-  start_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  end_date %<>% as.POSIXct(format = '%Y-%m-%d')
-  
-  #Get SMP locations, and the locations of the baro sensors
+  # Get SMP and baro sensor locations
   smp_loc <- DBI::dbGetQuery(con, "SELECT * FROM admin.tbl_smp_loc")
-  locus_loc <- dplyr::filter(smp_loc, smp_id == target_id)
-  baro_smp <- DBI::dbGetQuery(con, "SELECT DISTINCT smp_id FROM admin.tbl_baro_rawfile;") %>% dplyr::pull(smp_id)
+  target_loc <- smp_loc |> dplyr::filter(smp_id == target_id)
+  baro_smp <- DBI::dbGetQuery(con, "SELECT DISTINCT smp_id FROM admin.tbl_baro_rawfile") |>
+    dplyr::pull(smp_id)
   
-  # #Collect baro data
-  # #Get all baro data for the specified time period
-  baro <- DBI::dbGetQuery(con, paste0("SELECT * FROM data.viw_barodata_smp WHERE dtime >= '", start_date, "'", " AND dtime <= '", end_date + lubridate::days(1), "' order by dtime"))
-  #
-  baro_latest_dtime <- DBI::dbGetQuery(con, paste0("SELECT max(dtime) FROM data.tbl_baro WHERE dtime < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
-  baro_latest_valid <- DBI::dbGetQuery(con, paste0("SELECT max(dtime) FROM data.viw_barodata_neighbors WHERE neighbors >= 4 and dtime < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
+  # Get baro data
+  baro <- DBI::dbGetQuery(con, paste0("SELECT * FROM data.viw_barodata_smp WHERE dtime >= '", start_date, "'", " AND dtime < '", end_date + lubridate::days(1), "' order by dtime"))
 
-  if(length(baro$dtime) == 0){
+  # If no results, return baro_latest_dtime
+  if (length(baro$dtime) == 0) {
+    baro_latest_dtime <- DBI::dbGetQuery(con, paste0("SELECT max(dtime) FROM data.tbl_baro WHERE dtime < '", end_date + lubridate::days(1), "'")) %>% dplyr::pull()
     stop (paste0("No data available in the reqested interval. The latest available baro data is from ", baro_latest_dtime, "."))
   }
 
-  #this is a seperate pipe so that it could be stopped before the error
-  needs_thickening <- baro$dtime %>% lubridate::second() %>% {. > 0} %>% any() == TRUE
-  if(needs_thickening == TRUE){
-    baro %<>% padr::thicken(interval = "5 mins", rounding = "down") %>%
-      dplyr::group_by(dtime_5_min, smp_id) %>%
-      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>%
-      dplyr::select(dtime = dtime_5_min, smp_id, baro_psi) %>%
-      dplyr::ungroup()
-  }else{
-    baro %<>% dplyr::group_by(dtime, smp_id) %>%
-      dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) %>%
-      dplyr::select(dtime, smp_id, baro_psi) %>%
-      dplyr::ungroup()
+  #### This should be temporary
+  # Check if dtime has seconds
+  needs_thickening <- baro |>
+    dplyr::filter_out(lubridate::second(dtime) == 0)
+
+  # Remove seconds from dtime
+  if (nrow(needs_thickening > 0)) {
+    baro <- baro |>
+      # Round down to lowest minute
+      mutate(dtime = lubridate::floor_date(dtime, "minute"))
   }
 
-  baro$dtime %<>% lubridate::with_tz(tz = "America/New_York")
+  # Take max baro value if duplicate records
+  baro <- baro |>
+    dplyr::group_by(dtime, smp_id) |>
+    dplyr::summarize(baro_psi = max(baro_psi, na.rm = TRUE)) |>
+    dplyr::select(dtime, smp_id, baro_psi) |>
+    dplyr::ungroup()
 
-  #initialize countNAs_t in case the loop doesn't run. It is passed as a param to markdown so it needs to exist.
-  countNAs_t <- 0
-
-  #When the user requests data at a 5-minute resolution, we need to stretch our 15-minute data into 5-minute data
-  #We can use tidyr::spread and padr::pad to generate the full 5 minute time series,
-  #And then use zoo::na.locf (last observation carried forward) to fill the NAs with the most recent value
+  # Convert 15 min to 5 min interval
   if(data_interval == "5 mins"){
-
-    #Spread data to have all baro measurements use the same dtime_est column
-    #So we can pad every 15-minute time series at once
-    baro <- tidyr::spread(baro, "smp_id", "baro_psi")
-
-    #Pad installs 5 minute intervals in our 15 minute dtime_est column. All other columns become NA
-    #End value is 10 minutes after the final period because that 15 minute data point is good for 10 more minutes
-    baro_pad <- padr::pad(baro, start_val = min(baro$dtime), end_val = max(baro$dtime) + lubridate::minutes(10), interval = "5 mins")
-
-    #To count the LOCF operations, we count the NAs in the data frame before and after the LOCF
-    countNAs <- baro_pad[1,]
-    for(i in 2:ncol(baro_pad)){
-      countNAs[,i] <- sum(is.na(baro_pad[,i])) #count NAs before they are filled
-      baro_pad[,i] <- zoo::na.locf(baro_pad[,i], maxgap = 2, na.rm = FALSE) #maxgap = 2 means only fill NAs created by the pad
-      countNAs[,i] <- countNAs[,i]- sum(is.na(baro_pad[,i])) #subtract remaining NAs to get number of NAs filled
-    }
-    countNAs %<>% dplyr::select(-dtime)
-    countNAs_t <- countNAs %>% t() %>% data.frame() %>% tibble::rownames_to_column() %>%  magrittr::set_colnames(c("Location", "No. of LOCFs"))
-
-    #Return baro data to long data format
-    baro <- tidyr::gather(baro_pad, "smp_id", "baro_psi", -dtime) %>%
-      dplyr::filter(!is.na(baro_psi))
+    # Pivot wider
+    baro <- baro |>
+      tidyr::pivot_wider(names_from = "smp_id",
+                         values_from = "baro_psi") |>
+      padr::pad(start_val = min(baro$dtime),
+                end_val = max(baro$dtime),
+                interval = "5 mins") |>
+      # Fill in NA values
+      dplyr::mutate(across(where(is.numeric), ~zoo::na.locf(.x, maxgap = 2, na.rm = FALSE))) |>
+      tidyr::pivot_longer(!dtime,
+                          names_to = "smp_id",
+                          values_to = "baro_psi") |>
+      na.omit()
+  } else {
+    # Only return 15-min intervals
+    baro <- baro |> dplyr::filter(lubridate::minute(dtime) %% 15 == 0)
   }
-  #Calculate the distance between every baro location and the target SMP, then add weight
-  baro_weights <- dplyr::filter(smp_loc, smp_id %in% baro_smp) %>%
-    dplyr::mutate(lon_dist = lon_wgs84 - locus_loc$lon_wgs84,
-                  lat_dist = lat_wgs84 - locus_loc$lat_wgs84,
-                  dist_total = sqrt(lon_dist**2 + lat_dist**2)) %>%
-    dplyr::mutate(weight = 1/dist_total) %>% #inverse distance weight with power = 1
-    dplyr::select(smp_id, weight) %>%
+  # Calculate baro weights for interpolation
+  baro_weights <- smp_loc |>
+    dplyr::filter(smp_id %in% baro_smp) |>
+    # Calculate distances from baro sites to SMP
+    dplyr::mutate(lon_dist = lon_wgs84 - target_loc$lon_wgs84,
+                  lat_dist = lat_wgs84 - target_loc$lat_wgs84,
+                  dist_total = sqrt(lon_dist**2 + lat_dist**2),
+                  # Inverse distance weight with power = 1
+                  weight = 1/dist_total) |>
+    dplyr::select(smp_id, weight) |>
     dplyr::arrange(smp_id)
 
-  #Cap weight at 1000
-  baro_weights$weight <- replace(baro_weights$weight, baro_weights$weight > 1000, 1000)
   # Interpolate and return the baro data
-  interpolated_baro <- dplyr::left_join(baro, baro_weights, by = "smp_id") %>% #join baro and weights
-    dplyr::group_by(dtime) %>% #group datetimes, then calculate weighting effect for each datetime
+  baro <- baro |>
+    # Add baro weights to baro
+    dplyr::left_join(baro_weights, by = "smp_id") |>
+    # Cap weights at 1000
+    dplyr::mutate(weight = dplyr::if_else(weight > 1000, 1000, weight)) |>
+    # Calculate interpolated baro value by dtime
+    dplyr::group_by(dtime) |>
     dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
                      smp_id =  "Interpolated",
-                     neighbors = dplyr::n()) %>%
-    zoo::na.trim(sides = "right") #trim trailing NAs
-  
+                     neighbors = dplyr::n())
 }
 
 # marsCheckSMPSnapshot --------------------------------
