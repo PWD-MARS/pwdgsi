@@ -314,6 +314,9 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
                           names_to = "smp_id",
                           values_to = "baro_psi") |>
       na.omit()
+  } else {
+    # Only return 15-min intervals
+    baro <- baro |> dplyr::filter(lubridate::minute(dtime) %% 15 == 0)
   }
   # Calculate baro weights for interpolation
   baro_weights <- smp_loc |>
@@ -332,7 +335,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     # Add baro weights to baro
     dplyr::left_join(baro_weights, by = "smp_id") |>
     # Cap weights at 1000
-    dplyr::mutate(weight = if_else(weight > 1000, 1000, weight)) |>
+    dplyr::mutate(weight = dplyr::if_else(weight > 1000, 1000, weight)) |>
     # Calculate interpolated baro value by dtime
     dplyr::group_by(dtime) |>
     dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
