@@ -289,7 +289,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
   if (nrow(needs_thickening > 0)) {
     baro <- baro |>
       # Round down to lowest minute
-      mutate(dtime = lubridate::floor_date(dtime, "minute"))
+      dplyr::mutate(dtime = lubridate::floor_date(dtime, "minute"))
   }
 
   # Take max baro value if duplicate records
@@ -338,7 +338,7 @@ marsFetchBaroData <- function(con, target_id, start_date, end_date, data_interva
     dplyr::mutate(weight = dplyr::if_else(weight > 1000, 1000, weight)) |>
     # Calculate interpolated baro value by dtime
     dplyr::group_by(dtime) |>
-    dplyr::summarize(baro_psi = marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
+    dplyr::summarize(baro_psi = pwdgsi::marsInterpolateBaro(baro_psi, smp_id, weight, target_id),
                      smp_id =  "Interpolated",
                      neighbors = dplyr::n())
 }
